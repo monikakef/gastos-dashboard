@@ -338,7 +338,7 @@ function pintarLista(cur) {
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /* ---------- eventos ---------- */
-$('lock').addEventListener('submit', e => { e.preventDefault(); entrar($('pw').value, $('remember').checked); });
+$('lock').addEventListener('submit', e => { e.preventDefault(); entrar($('pw').value.trim(), $('remember').checked); });
 $('who').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.who = b.dataset.p; LSset('who', state.who); pintar(); });
 $('prev').onclick = () => { state.month = months[months.indexOf(state.month) - 1]; pintar(); };
 $('next').onclick = () => { state.month = months[months.indexOf(state.month) + 1]; pintar(); };
