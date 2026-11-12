@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Gastos del mes</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface: #fcfcfb; --card: #ffffff; --line: #e6e5e0; --grid: #ecebe6;
+    --ink: #0b0b0b; --ink2: #52514e; --ink3: #85847d;
+    --s1: #2a78d6; --prev: #a3a29b; --good: #1a7f4b; --bad: #c4402f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface: #1a1a19; --card: #232322; --line: #34332f; --grid: #2d2c29;
+      --ink: #f0efec; --ink2: #c3c2b7; --ink3: #8f8e86;
+      --s1: #3987e5; --prev: #77766f; --good: #4cc28a; --bad: #ef7d6e;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--surface); color: var(--ink);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 16px 16px 48px; }
+  .hidden { display: none !important; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* bloqueo */
+  #lock { min-height: 80vh; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+  #lock h1 { margin: 0; font-size: 22px; }
+  #lock p { margin: 0; color: var(--ink2); }
+  input[type=password] { width: 100%; font: inherit; padding: 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  button { font: inherit; cursor: pointer; }
+  .btn { padding: 14px; border: 0; border-radius: 12px; background: var(--s1); color: #fff; font-weight: 600; }
+  .check { display: flex; gap: 8px; align-items: center; color: var(--ink2); font-size: 14px; }
+  #err { color: var(--bad); min-height: 1.2em; font-size: 14px; }
+
+  /* cabecera */
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .month { display: flex; align-items: center; gap: 4px; }
+  .month button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); font-size: 18px; }
+  .month button:disabled { opacity: .35; }
+  .month strong { min-width: 130px; text-align: center; font-size: 17px; }
+  .seg { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 2px; }
+  .seg button { border: 0; background: none; color: var(--ink2); padding: 8px 12px; border-radius: 8px; font-size: 14px; }
+  .seg button[aria-pressed=true] { background: var(--s1); color: #fff; font-weight: 600; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+  .label { color: var(--ink2); font-size: 13px; }
+  .hero { font-size: 44px; font-weight: 700; letter-spacing: -1px; line-height: 1.1; margin: 4px 0 6px; }
+  .delta { font-size: 14px; color: var(--ink2); }
+  .delta b.up { color: var(--bad); } .delta b.down { color: var(--good); }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .tile { border-top: 1px solid var(--line); padding-top: 10px; }
+  .tile .v { font-size: 18px; font-weight: 600; }
+  h2 { font-size: 15px; margin: 0 0 12px; font-weight: 600; }
+
+  /* gráfico */
+  .legend { display: flex; gap: 14px; font-size: 13px; color: var(--ink2); margin-bottom: 6px; }
+  .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--s1); vertical-align: middle; margin-right: 6px; }
+  .legend i.p { border-top: 2px dashed var(--prev); }
+  #chart { position: relative; touch-action: pan-y; }
+  #chart svg { width: 100%; height: auto; display: block; }
+  #tip { position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 6px 10px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.15); white-space: nowrap; }
+
+  /* categorías */
+  .cat { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; margin-bottom: 12px; }
+  .cat .n { font-size: 14px; } .cat .a { font-size: 14px; font-weight: 600; text-align: right; }
+  .bar { grid-column: 1 / -1; height: 8px; background: var(--grid); border-radius: 4px; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--s1); border-radius: 0 4px 4px 0; }
+  .pct { color: var(--ink3); font-weight: 400; margin-left: 6px; }
+
+  /* lista */
+  .day { color: var(--ink3); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; margin: 14px 0 4px; }
+  .row { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row .d { font-size: 15px; } .row .c { font-size: 12px; color: var(--ink3); }
+  .row .m { font-weight: 600; white-space: nowrap; }
+  .foot { color: var(--ink3); font-size: 12px; text-align: center; margin-top: 18px; }
+  .foot button { background: none; border: 0; color: var(--s1); font-size: 12px; padding: 4px 8px; }
+  .empty { color: var(--ink2); text-align: center; padding: 24px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <form id="lock" autocomplete="on">
+    <h1>Gastos del mes</h1>
+    <p>Introduce la contraseña para ver los datos.</p>
+    <input type="text" name="username" value="gastos" autocomplete="username" hidden>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="Contraseña" required>
+    <label class="check"><input id="remember" type="checkbox" checked> Recordar en este dispositivo</label>
+    <div id="err" role="alert"></div>
+    <button class="btn" type="submit">Entrar</button>
+  </form>
+
+  <main id="app" class="hidden">
+    <div class="top">
+      <div class="month">
+        <button id="prev" aria-label="Mes anterior">‹</button>
+        <strong id="monthName"></strong>
+        <button id="next" aria-label="Mes siguiente">›</button>
+      </div>
+      <div class="seg" id="who" role="group" aria-label="Persona"></div>
+    </div>
+
+    <section class="card">
+      <div class="label" id="heroLabel"></div>
+      <div class="hero num" id="hero"></div>
+      <div class="delta" id="delta"></div>
+      <div class="tiles">
+        <div class="tile"><div class="label">Media diaria</div><div class="v num" id="tAvg"></div></div>
+        <div class="tile"><div class="label" id="tPaidL">Has pagado</div><div class="v num" id="tPaid"></div></div>
+        <div class="tile"><div class="label">Movimientos</div><div class="v num" id="tCount"></div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Acumulado del mes</h2>
+      <div class="legend"><span><i></i><span id="lgCur"></span></span><span><i class="p"></i><span id="lgPrev"></span></span></div>
+      <div id="chart"></div>
+    </section>
+
+    <section class="card">
+      <h2>Por categoría</h2>
+      <div id="cats"></div>
+    </section>
+
+    <section class="card">
+      <h2>Movimientos</h2>
+      <div id="list"></div>
+    </section>
+
+    <div class="foot"><span id="updated"></span> <button id="reload">Recargar</button> <button id="logout">Salir</button></div>
+  </main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const eur = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+const eur0 = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+const LS = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const LSset = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
+
+let DATA = null;
+const state = { month: null, who: LS('who') || null };
+let months = [];
+
+/* ---------- descifrado ---------- */
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function descifrar(pw) {
+  const r = await fetch('data.json?t=' + Date.now(), { cache: 'no-store' });
+  if (!r.ok) throw new Error('No se pudieron cargar los datos');
+  const j = await r.json();
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: unb64(j.salt), iterations: j.iter, hash: 'SHA-256' },
+    base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(j.iv) }, key, unb64(j.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+async function entrar(pw, remember) {
+  $('err').textContent = '';
+  try {
+    DATA = await descifrar(pw);
+  } catch (e) {
+    $('err').textContent = e.message.startsWith('No se') ? e.message : 'Contraseña incorrecta';
+    LSset('pw', null);
+    return false;
+  }
+  if (remember) LSset('pw', pw);
+  iniciar();
+  return true;
+}
+
+/* ---------- datos ---------- */
+const ym = d => d.slice(0, 7);
+const gastos = () => DATA.transactions.filter(t => t.type === 'NORMAL');
+function importe(t) {
+  if (state.who === 'Total') return t.total;
+  return t.shares[state.who] || 0;
+}
+const delMes = m => gastos().filter(t => ym(t.d) === m && importe(t) > 0);
+function monthLabel(m) {
+  const [y, mo] = m.split('-').map(Number);
+  const n = new Date(y, mo - 1, 1).toLocaleDateString('es-ES', { month: 'long' });
+  return n.charAt(0).toUpperCase() + n.slice(1) + ' ' + y;
+}
+const daysIn = m => { const [y, mo] = m.split('-').map(Number); return new Date(y, mo, 0).getDate(); };
+const hoy = () => new Date().toISOString().slice(0, 10);
+const shiftMonth = (m, n) => { const [y, mo] = m.split('-').map(Number); const d = new Date(y, mo - 1 + n, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+
+function iniciar() {
+  $('lock').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  const people = DATA.members;
+  const opts = [...people, 'Total'];
+  if (!opts.includes(state.who)) state.who = people[0];
+  $('who').innerHTML = opts.map(p => `<button data-p="${p}" aria-pressed="${p === state.who}">${p}</button>`).join('');
+  const hm = hoy().slice(0, 7);
+  const set = new Set(gastos().map(t => ym(t.d))); set.add(hm);
+  months = [...set].sort();
+  state.month = hm;
+  const u = new Date(DATA.generated);
+  $('updated').textContent = 'Actualizado ' + u.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) + ' ·';
+  pintar();
+}
+
+/* ---------- pintar ---------- */
+function pintar() {
+  const m = state.month, esActual = m === hoy().slice(0, 7);
+  const prevM = shiftMonth(m, -1);
+  const cur = delMes(m), prev = delMes(prevM);
+  const total = cur.reduce((s, t) => s + importe(t), 0);
+  const diaCorte = esActual ? new Date().getDate() : daysIn(m);
+
+  $('monthName').textContent = monthLabel(m);
+  $('prev').disabled = months.indexOf(m) <= 0;
+  $('next').disabled = months.indexOf(m) >= months.length - 1;
+  document.querySelectorAll('#who button').forEach(b => b.setAttribute('aria-pressed', b.dataset.p === state.who));
+
+  $('heroLabel').textContent = state.who === 'Total' ? 'Gasto total del grupo' : `Gasto de ${state.who}`;
+  $('hero').textContent = eur.format(total);
+
+  const prevMismoPunto = prev.filter(t => +t.d.slice(8) <= diaCorte).reduce((s, t) => s + importe(t), 0);
+  const nameP = monthLabel(prevM).split(' ')[0].toLowerCase();
+  if (prevMismoPunto > 0) {
+    const diff = total - prevMismoPunto, pct = Math.round(Math.abs(diff) / prevMismoPunto * 100);
+    const txt = esActual ? `a día ${diaCorte} de ${nameP}` : `que en ${nameP} (mes completo)`;
+    $('delta').innerHTML = `<b class="${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '▲' : '▼'} ${eur.format(Math.abs(diff))} (${pct}%)</b> ${diff > 0 ? 'más' : 'menos'} ${esActual ? txt : txt}`;
+  } else $('delta').textContent = '';
+
+  $('tAvg').textContent = eur0.format(total / Math.max(diaCorte, 1));
+  const pagado = gastos().filter(t => ym(t.d) === m && (state.who === 'Total' || t.paid === state.who)).reduce((s, t) => s + t.total, 0);
+  $('tPaidL').textContent = state.who === 'Total' ? 'Suma pagos' : 'Has pagado';
+  $('tPaid').textContent = eur0.format(pagado);
+  $('tCount').textContent = cur.length;
+
+  pintarGrafico(m, prevM, cur, prev, esActual ? diaCorte : daysIn(m));
+  pintarCats(cur, total);
+  pintarLista(cur);
+}
+
+function acumulado(movs, dias) {
+  const a = new Array(dias + 1).fill(0);
+  movs.forEach(t => { const d = +t.d.slice(8); if (d <= dias) a[d] += importe(t); });
+  for (let i = 1; i <= dias; i++) a[i] += a[i - 1];
+  return a; // índice = día
+}
+
+function pintarGrafico(m, prevM, cur, prev, hasta) {
+  const N = Math.max(daysIn(m), daysIn(prevM));
+  const A = acumulado(cur, hasta), B = acumulado(prev, daysIn(prevM));
+  $('lgCur').textContent = monthLabel(m).split(' ')[0];
+  $('lgPrev').textContent = monthLabel(prevM).split(' ')[0];
+  const W = 520, H = 220, L = 44, R = 10, T = 10, Bt = 26;
+  const max = Math.max(1, ...A, ...B) * 1.08;
+  const x = d => L + (d - 1) / (N - 1) * (W - L - R);
+  const y = v => T + (1 - v / max) * (H - T - Bt);
+  const step = niceStep(max / 4);
+  let g = '';
+  for (let v = 0; v <= max; v += step) {
+    g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/>`
+       + `<text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--ink3)">${eur0.format(v)}</text>`;
+  }
+  [1, 8, 15, 22, N].forEach(d => g += `<text x="${x(d)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--ink3)">${d}</text>`);
+  const path = (arr, hasta) => arr.slice(1, hasta + 1).map((v, i) => (i ? 'L' : 'M') + x(i + 1).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+  g += `<path d="${path(B, daysIn(prevM))}" fill="none" stroke="var(--prev)" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round"/>`;
+  g += `<path d="${path(A, hasta)}" fill="none" stroke="var(--s1)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  g += `<circle cx="${x(hasta)}" cy="${y(A[hasta])}" r="5" fill="var(--s1)" stroke="var(--card)" stroke-width="2"/>`;
+  g += `<g id="cross" class="hidden"><line id="cl" y1="${T}" y2="${H - Bt}" stroke="var(--ink3)" stroke-dasharray="3 3"/><circle id="cd" r="5" fill="var(--s1)" stroke="var(--card)" stroke-width="2"/></g>`;
+  const box = $('chart');
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gasto acumulado de ${monthLabel(m)} frente a ${monthLabel(prevM)}">${g}</svg><div id="tip" class="hidden"></div>`;
+  const svg = box.querySelector('svg'), tip = $('tip');
+  const move = ev => {
+    const r = svg.getBoundingClientRect();
+    const px = (ev.clientX - r.left) / r.width * W;
+    let d = Math.round((px - L) / (W - L - R) * (N - 1)) + 1;
+    d = Math.max(1, Math.min(hasta, d));
+    $('cross').classList.remove('hidden');
+    $('cl').setAttribute('x1', x(d)); $('cl').setAttribute('x2', x(d));
+    $('cd').setAttribute('cx', x(d)); $('cd').setAttribute('cy', y(A[d]));
+    const pv = d <= daysIn(prevM) ? B[d] : null;
+    tip.innerHTML = `<b>Día ${d}</b><br>${eur.format(A[d])}` + (pv !== null ? `<br><span style="color:var(--ink2)">${eur.format(pv)} mes ant.</span>` : '');
+    tip.classList.remove('hidden');
+    const tx = x(d) / W * r.width;
+    tip.style.left = Math.min(Math.max(tx - 40, 0), r.width - 120) + 'px';
+    tip.style.top = '0px';
+  };
+  svg.addEventListener('pointermove', move);
+  svg.addEventListener('pointerdown', move);
+  svg.addEventListener('pointerleave', () => { $('cross').classList.add('hidden'); tip.classList.add('hidden'); });
+}
+function niceStep(raw) {
+  const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+}
+
+function pintarCats(cur, total) {
+  const by = {};
+  cur.forEach(t => by[t.cat || 'Sin categoría'] = (by[t.cat || 'Sin categoría'] || 0) + importe(t));
+  const arr = Object.entries(by).sort((a, b) => b[1] - a[1]);
+  if (!arr.length) { $('cats').innerHTML = '<div class="empty">Sin gastos este mes</div>'; return; }
+  const mx = arr[0][1];
+  $('cats').innerHTML = arr.map(([n, v]) => `<div class="cat"><span class="n">${esc(n)}</span>
+    <span class="a num">${eur.format(v)}<span class="pct">${Math.round(v / total * 100)}%</span></span>
+    <div class="bar"><span style="width:${(v / mx * 100).toFixed(1)}%"></span></div></div>`).join('');
+}
+
+function pintarLista(cur) {
+  if (!cur.length) { $('list').innerHTML = '<div class="empty">Todavía no hay gastos en este mes</div>'; return; }
+  const s = [...cur].sort((a, b) => b.d.localeCompare(a.d));
+  let html = '', last = '';
+  s.forEach(t => {
+    if (t.d !== last) {
+      last = t.d;
+      const dt = new Date(t.d + 'T12:00:00');
+      html += `<div class="day">${dt.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' })}</div>`;
+    }
+    const extra = state.who !== 'Total' && t.total !== importe(t) ? ` · total ${eur.format(t.total)}` : '';
+    html += `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}</div>
+      <div class="c">${esc(t.cat || '')} · pagó ${esc(t.paid)}${extra}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`;
+  });
+  $('list').innerHTML = html;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ---------- eventos ---------- */
+$('lock').addEventListener('submit', e => { e.preventDefault(); entrar($('pw').value, $('remember').checked); });
+$('who').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.who = b.dataset.p; LSset('who', state.who); pintar(); });
+$('prev').onclick = () => { state.month = months[months.indexOf(state.month) - 1]; pintar(); };
+$('next').onclick = () => { state.month = months[months.indexOf(state.month) + 1]; pintar(); };
+$('reload').onclick = () => location.reload();
+$('logout').onclick = () => { LSset('pw', null); location.reload(); };
+
+const saved = LS('pw');
+if (saved) entrar(saved, true);
+</script>
+</body>
+</html>
