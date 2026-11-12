@@ -12,7 +12,7 @@ ITER = 250_000
 b64 = lambda b: base64.b64encode(b).decode()
 
 src = sys.argv[1]
-password = os.environ.get("DASH_PASSWORD")
+password = (os.environ.get("DASH_PASSWORD") or "").strip()
 if not password:
     sys.exit("Falta la variable DASH_PASSWORD")
 
