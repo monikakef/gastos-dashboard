@@ -127,6 +127,7 @@ dialog { max-height:92vh; overflow:auto; }
 .vSec { font-size:12px; font-weight:600; color:var(--ink2); text-transform:uppercase; letter-spacing:.04em; margin:12px 0 6px; border-top:1px solid var(--line); padding-top:10px; }
 dialog::backdrop { background:rgba(0,0,0,.55); }
 dialog label { display:block; font-size:12.5px; color:var(--ink2); margin-bottom:10px; }
+dialog textarea { display:block; width:100%; margin-top:3px; font:inherit; font-size:13px; padding:8px; border-radius:10px; border:1px solid var(--line); background:var(--surface); color:var(--ink); resize:vertical; }
 dialog input, dialog select { display:block; width:100%; margin-top:3px; font:inherit; font-size:16px; padding:10px; border-radius:10px; border:1px solid var(--line); background:var(--surface); color:var(--ink); }
 #fErr { color:var(--bad); min-height:1.2em; font-size:13px; margin-bottom:6px; }
 .dlgBtns { display:flex; gap:8px; align-items:center; }
@@ -311,6 +312,12 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <label>Nombre del fondo<input id="vNombre" type="text" maxlength="40" required placeholder="Mi fondo indexado"></label>
 <label><span id="vIsinT">ISIN, para buscar los precios (opcional)</span><input id="vIsin" type="text" maxlength="12" autocapitalize="characters" placeholder="IE00B03HD191" style="text-transform:uppercase"></label>
 <label id="vRefL" class="hidden"><span>Fondo de referencia (ISIN), para estimar su evolución si no hay precios del plan (opcional)</span><input id="vRef" type="text" maxlength="12" autocapitalize="characters" placeholder="LU1841614867" style="text-transform:uppercase"></label>
+<div class="vSec">Histórico de precios (opcional)</div>
+<div style="font-size:12px;color:var(--ink3);margin:-2px 0 6px">Pega la tabla de fechas y valores liquidativos (copiada de Morningstar, de la web de la gestora, de Inverco…) o carga un CSV. Se usa para estimar el valor como en un fondo.</div>
+<textarea id="vHist" rows="4" placeholder="Fecha;Valor liquidativo&#10;13/11/2026;12,3456&#10;12/11/2026;12,3300"></textarea>
+<input type="file" id="vHistF" accept=".csv,.txt,.tsv,text/csv,text/plain" style="font-size:13px">
+<div id="vHistInfo" style="font-size:12px;margin:4px 0 8px;color:var(--ink2)"></div>
+<button type="button" id="vHistQuitar" class="btn2 danger hidden" style="font-size:12px;padding:4px 10px;margin-bottom:8px">Quitar el histórico guardado</button>
 <div class="vSec">Aportación inicial (opcional)</div>
 <label>Importe de la aportación inicial (€)<input type="number" id="vInicial" step="0.01" min="0.01" inputmode="decimal" placeholder="500"></label>
 <label>Fecha de la aportación inicial<input type="date" id="vInicialF"></label>
@@ -623,7 +630,7 @@ return j;
 }
 async function ingListar() {
 const [rows, fon] = await Promise.all([rpc('ingresos_listar', { p_codigo:ing.code }), rpc('fondos_listar', { p_codigo:ing.code })]);
-ing.fondos = fon.map(f => ({ id:f.id, clase:f.clase || 'fondo', ref:f.ref_isin || '', nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
+ing.fondos = fon.map(f => ({ id:f.id, clase:f.clase || 'fondo', ref:f.ref_isin || '', historico:Array.isArray(f.historico) ? f.historico : null, nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
 inicial:f.inicial == null ? null : Number(f.inicial), inicialFecha:f.inicial_fecha, baseFecha:f.base_fecha, baseAportado:f.base_aportado == null ? null : Number(f.base_aportado), baseValor:f.base_valor == null ? null : Number(f.base_valor), rent:f.rent_anual == null ? null : Number(f.rent_anual), persona:f.persona }));
 ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso', per:r.periodicidad || 'unica', fin:r.fecha_fin || null, rent:r.rent_anual == null ? null : Number(r.rent_anual), fondoId:r.fondo_id || null }));
 ing.items.forEach(t => { if (t.fondoId) { t.extra = true; const f = ing.fondos.find(x => x.id === t.fondoId); if (f) t.cat = f.nombre; } });  // aportaciones extraordinarias de un fondo
@@ -722,17 +729,53 @@ fetch(SB.url + '/functions/v1/precios-fondo', { method:'POST', headers:{ apikey:
 .finally(() => { if (ing.estado === 'ok') pintarIng(); });
 }
 // Aportaciones periódicas de los fondos (desde la primera hasta la fecha dada), con el mismo formato que las aportaciones sueltas.
+// Lee una tabla de fecha y valor liquidativo (CSV, TSV o pegada desde una web). Acepta fechas dd/mm/aaaa, dd-mm-aa o aaaa-mm-dd y
+// números con coma o punto decimal. Devuelve la serie ordenada [[aaaa-mm-dd, precio], ...] sin fechas repetidas.
+function parsearHistorico(txt) {
+const pad = n => String(n).padStart(2, '0'), mapa = new Map();
+const num = s => {
+s = s.replace(/[\s€$% ]/g, '');
+if (!/^-?[\d.,]+$/.test(s)) return null;
+const c = s.lastIndexOf(','), p = s.lastIndexOf('.');
+if (c >= 0 && p >= 0) s = c > p ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+else if (c >= 0) s = s.replace(',', '.');
+const v = parseFloat(s);
+return isFinite(v) ? v : null;
+};
+const fecha = s => {
+const m = s.match(/^(\d{1,4})[\/.\-](\d{1,2})[\/.\-](\d{1,4})/);
+if (!m) return null;
+const a = +m[1], b = +m[2], c = +m[3];
+let y, mo, d;
+if (m[1].length === 4) { y = a; mo = b; d = c; } else { d = a; mo = b; y = c < 100 ? 2000 + c : c; }
+if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 1990 || y > 2100) return null;
+return y + '-' + pad(mo) + '-' + pad(d);
+};
+String(txt || '').split(/\r?\n/).forEach(l => {
+if (!l.trim()) return;
+const cols = (l.includes('"') ? (l.match(/"[^"]*"|[^,;\t]+/g) || []) : (l.includes(';') || l.includes('\t')) ? l.split(/[;\t]/) : (l.split(',').length === 2 ? l.split(',') : l.trim().split(/\s+/))).map(c => c.trim().replace(/^"|"$/g, ''));
+const i = cols.findIndex(c => fecha(c));
+if (i < 0) return;
+let v = null;
+for (let j = i + 1; j < cols.length && v === null; j++) v = num(cols[j]);
+for (let j = 0; j < i && v === null; j++) v = num(cols[j]);
+if (v !== null && v > 0) mapa.set(fecha(cols[i]), v);
+});
+return [...mapa.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([d, v]) => [d, Math.round(v * 1e4) / 1e4]);
+}
 function aportesFondos(hasta) {
 const iniciales = ing.fondos.filter(f => f.inicial && f.inicialFecha && f.inicialFecha <= hasta).map(f => ({ id:f.id, fondoId:f.id, tipo:'inversion', d:f.inicialFecha, amount:f.inicial, per:'unica', inicial:true, cat:f.nombre, desc:f.nombre, p:f.persona || miembroFan() || 'Fan' }));
 return [...iniciales, ...ing.fondos.filter(f => f.aporte && f.desde).flatMap(f => ocurrencias({ id:f.id, fondoId:f.id, tipo:'inversion', d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta, cat:f.nombre, desc:f.nombre, p:f.persona || miembroFan() || 'Fan' }, hasta))];
 }
-const isinEfectivo = f => { const a = (f.isin || '').toUpperCase(), b = (f.ref || '').toUpperCase(); return ISIN_RE.test(a) ? a : ISIN_RE.test(b) ? b : ''; };   // el propio o, si no hay, el de referencia
+const isinEfectivo = f => { const a = (f.isin || '').toUpperCase(), b = (f.ref || '').toUpperCase(); return ISIN_RE.test(a) ? a : (f.historico && f.historico.length >= 2) ? '' : ISIN_RE.test(b) ? b : ''; };   // el propio o, si no hay, el de referencia
 const INI_GRAFICA = '2025-01-01';   // las gráficas de fondos y planes empiezan aquí
 const claseSub = () => ing.sub === 'planes' ? 'plan' : ing.sub === 'fondos' ? 'fondo' : null;   // 'resumen': todas las inversiones
 function modeloFondos(anios, clase) {
 const hoy = hoyStr(), tope = sumarMeses(hoy, anios * 12);
 return ing.fondos.filter(f => !clase || f.clase === clase).map(f => {
-const codigo = f.isin || '', isin = isinEfectivo(f), viaRef = !!isin && isin !== codigo.toUpperCase(), px = isin && precios[isin] && precios[isin].estado === 'ok' ? precios[isin] : null;
+const codigo = f.isin || '', propio = ISIN_RE.test(codigo.toUpperCase()) ? codigo.toUpperCase() : '', refI = ISIN_RE.test((f.ref || '').toUpperCase()) ? f.ref.toUpperCase() : '', hist = f.historico && f.historico.length >= 2 ? f.historico : null;
+const okP = id => id && precios[id] && precios[id].estado === 'ok' ? precios[id] : null;
+const isin = isinEfectivo(f), px = okP(propio) || (hist ? { estado:'ok', serie:hist, importado:true } : null) || okP(refI), viaRef = !okP(propio) && !hist && !!okP(refI);
 const plan = f.aporte && f.desde ? ocurrencias({ d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta }, tope) : [];
 const ex = ing.items.filter(t => t.tipo === 'inversion' && t.fondoId === f.id).map(t => ({ d:t.d, amount:t.amount }));   // extraordinarias de este fondo
 const anclado = f.baseValor != null && !!f.baseFecha;
@@ -752,7 +795,7 @@ F.u0 = v0 > 0 ? v0 / navEn(s, d0) : 0; F.navHoy = last[1]; F.fechaNav = last[0];
 F.rMedia = dd >= 90 ? Math.pow(last[1] / s[i0][1], 365 / dd) - 1 : 0; F.anios = dd / 365;
 }
 F.r = F.rOver != null ? F.rOver : (px ? F.rMedia : F.rManual);
-F.rFuente = F.rOver != null ? 'supuesta por ti' : px ? (viaRef ? 'media del fondo de referencia, últimos ' : 'media de los últimos ') + Math.min(5, F.anios).toLocaleString('es-ES', { maximumFractionDigits:1 }) + ' años' : F.rManual ? 'supuesta por ti' : 'sin crecimiento';
+F.rFuente = F.rOver != null ? 'supuesta por ti' : px ? (viaRef ? 'media del fondo de referencia, últimos ' : px.importado ? 'media del histórico importado, últimos ' : 'media de los últimos ') + Math.min(5, F.anios).toLocaleString('es-ES', { maximumFractionDigits:1 }) + ' años' : F.rManual ? 'supuesta por ti' : 'sin crecimiento';
 F.cont = d => d < F.d0 ? (anclado ? Math.max(0, F.aport0 - F.antes.filter(x => x.d > d).reduce((t, x) => t + x.a, 0)) : 0) : F.aport0 + F.ap.filter(x => x.d <= d).reduce((t, x) => t + x.a, 0);   // aportado: lo ya aportado + aportaciones posteriores
 F.valor = d => {
 if (d < F.d0) {   // antes de la fecha de partida: se quitan las aportaciones posteriores a d y se deshace el crecimiento
@@ -813,8 +856,9 @@ const vacio = resumen ? 'Aún no hay fondos ni planes. Añádelos en las pestañ
 : clase === 'plan' ? 'Pulsa «+ Nuevo plan» e indica su nombre y, si quieres, su código (el de la DGS, no un ISIN), tu aportación inicial y/o cuánto aportas cada mes y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Si no encuentro precios, lo estimo con la rentabilidad que indiques.'
 : 'Pulsa «+ Nuevo fondo» e indica su ISIN, tu aportación inicial y/o cuánto aportas cada mes (la periódica es opcional) y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Busco los precios, estimo su valor de hoy y proyecto su evolución.';
 $('iFondosL').innerHTML = cab + (fs.length ? fs.map(f => {
-const sinPrecios = (f.codigo ? 'código no ISIN: sin precios online' : f.clase === 'plan' ? 'sin código' : 'sin ISIN') + (f.r ? ' · estimación con la rentabilidad indicada' : ' · sin crecimiento: indica una rentabilidad anual' + (f.clase === 'plan' ? ' o un fondo de referencia' : '') + ' (Editar)');
-const precio = !f.isin ? sinPrecios : f.px ? `${f.viaRef ? 'Siguiendo el fondo ' + esc(f.isin) + ' · ' : ''}VL ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:2 })} € (${corta(f.fechaNav)})`
+const sinPrecios = (f.codigo ? 'código no ISIN: sin precios online' : f.clase === 'plan' ? 'sin código' : 'sin ISIN') + (f.r ? ' · estimación con la rentabilidad indicada' : ' · sin crecimiento: indica una rentabilidad anual' + (f.clase === 'plan' ? ', un fondo de referencia o importa su histórico' : '') + ' (Editar)');
+const viejo = f.px && f.px.importado && diasEntre(f.fechaNav, hoyStr()) > 10;
+const precio = f.px && f.px.importado ? `VL importado ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:4 })} € (${corta(f.fechaNav)})${viejo ? ' · histórico desactualizado: vuelve a importarlo' : ''}` : !f.isin ? sinPrecios : f.px ? `${f.viaRef ? 'Siguiendo el fondo ' + esc(f.isin) + ' · ' : ''}VL ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:2 })} € (${corta(f.fechaNav)})`
 : f.pxEstado === 'error' ? `sin precios (${esc(f.pxMsg || 'error')}) · <a href="#" data-retry="${esc(f.isin)}" style="color:var(--s1)">reintentar</a>` : 'buscando precios…';
 const pct = f.aportado > 0 ? ' (' + (f.gan >= 0 ? '+' : '') + pc(f.gan / f.aportado * 100) + ' %)' : '';
 const plan = f.f.aporte ? `Aportas ${eur0.format(f.f.aporte)} ${NOMBRE_PER[f.f.per]} desde ${corta(f.f.desde)}${f.f.hasta ? ' hasta ' + corta(f.f.hasta) : ''}` : 'sin aportación periódica';
@@ -900,6 +944,16 @@ if (!ing.extraId || !confirm('¿Eliminar esta aportación extraordinaria? No se 
 const ok = await ingOp(() => rpc('ingresos_borrar', { p_codigo:ing.code, p_id:ing.extraId }));
 if (ok || ing.estado !== 'ok') $('xDlg').close(); else $('xErr').textContent = ing.msg;
 }
+const fmtF = d => new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' });
+function leerHistorico() {   // lee lo pegado o cargado; se guarda al pulsar Guardar
+const info = $('vHistInfo'), txt = $('vHist').value;
+ing.histTmp = null;
+if (!txt.trim()) { info.textContent = ''; return; }
+const serie = parsearHistorico(txt);
+if (serie.length < 20) { info.innerHTML = `<span class="neg">Solo he encontrado ${serie.length} precios válidos (hacen falta al menos 20). Comprueba que hay una columna de fecha y otra de valor liquidativo.</span>`; return; }
+ing.histTmp = serie; ing.histQuitar = false;
+info.innerHTML = `<span class="pos">Listo: ${serie.length} precios, del ${fmtF(serie[0][0])} al ${fmtF(serie[serie.length - 1][0])} (de ${serie[0][1].toLocaleString('es-ES')} a ${serie[serie.length - 1][1].toLocaleString('es-ES')}). Se guardarán al pulsar Guardar.</span>`;
+}
 function abrirFondo(id, clase) {
 const f = id ? ing.fondos.find(x => x.id === id) : null;
 ing.fondoId = f ? f.id : null; ing.fondoClase = f ? f.clase : (clase || 'fondo');
@@ -907,6 +961,10 @@ const plan = ing.fondoClase === 'plan';
 $('vTitulo').textContent = (f ? 'Editar ' : 'Nuevo ') + (plan ? 'plan de pensiones' : 'fondo');
 $('vNombre').value = f ? f.nombre : ''; $('vIsin').value = f ? f.isin : '';
 $('vRef').value = f ? f.ref : ''; $('vRefL').classList.toggle('hidden', !plan);
+ing.histTmp = null; ing.histQuitar = false; $('vHist').value = ''; $('vHistF').value = '';
+const h0 = f && f.historico;
+$('vHistInfo').textContent = h0 ? `Histórico guardado: ${h0.length} precios, hasta el ${fmtF(h0[h0.length - 1][0])}. Pega uno nuevo para sustituirlo.` : '';
+$('vHistQuitar').classList.toggle('hidden', !h0);
 $('vIsinT').textContent = plan ? 'Código del plan, p. ej. el de la DGS (opcional)' : 'ISIN, para buscar los precios (opcional)'; $('vIsin').placeholder = plan ? 'N1234' : 'IE00B03HD191'; $('vIsin').maxLength = plan ? 20 : 12;
 $('vInicial').value = f && f.inicial ? f.inicial : ''; $('vInicialF').value = f && f.inicialFecha ? f.inicialFecha : '';
 $('vAporte').value = f && f.aporte ? f.aporte : ''; $('vPer').value = f ? f.per : 'mensual';
@@ -915,7 +973,7 @@ $('vAportado').value = f && f.baseAportado != null ? f.baseAportado : ''; $('vVa
 $('vFecha').value = f && f.baseFecha ? f.baseFecha : hoyStr();
 $('vRent').value = f && f.rent != null ? f.rent : '';
 $('vDel').classList.toggle('hidden', !f);
-$('vNota').textContent = (f ? 'Para actualizar el valor: pon la fecha de hoy, lo aportado hasta hoy y lo que vale ahora. ' : '') + (plan ? 'Los planes de pensiones no usan ISIN sino otro código (el de la DGS, como N1234) y no tienen precios online: lo estimo con la rentabilidad que indiques abajo. Si tu plan sí tiene ISIN, ponlo y buscaré sus precios. Si no tiene precios, puedes indicar un fondo de referencia parecido (su ISIN) y lo estimaré con la evolución de ese fondo.' : '');
+$('vNota').textContent = (f ? 'Para actualizar el valor: pon la fecha de hoy, lo aportado hasta hoy y lo que vale ahora. ' : '') + (plan ? 'Los planes de pensiones no usan ISIN sino otro código (el de la DGS, como N1234) y no tienen precios online: lo estimo con la rentabilidad que indiques abajo. Si tu plan sí tiene ISIN, ponlo y buscaré sus precios. Si no, puedes importar su histórico de valores liquidativos (abajo) o indicar un fondo de referencia parecido.' : '');
 $('vErr').textContent = '';
 $('vDlg').showModal();
 }
@@ -941,8 +999,12 @@ if (aportado !== null && aportado < 0) return err('Lo aportado no puede ser nega
 if (aporte === null && valor === null && inicial === null) return err('Indica una aportación (inicial o periódica) o el valor actual del fondo.');
 if (rent !== null && (rent < -100 || rent > 100)) return err('La rentabilidad debe estar entre -100 y 100.');
 $('vSave').disabled = true;
-const ok = await ingOp(() => rpc('fondos_guardar', { p_codigo:ing.code, p_id:ing.fondoId || crypto.randomUUID(), p_nombre:nombre, p_isin:isin, p_aporte:aporte, p_periodicidad:$('vPer').value, p_aporte_desde:aporte === null ? null : desde, p_aporte_hasta:aporte === null ? null : hasta,
-p_base_fecha:valor === null ? null : fecha, p_base_aportado:valor === null ? null : aportado, p_base_valor:valor, p_rent_anual:rent, p_persona:miembroFan() || 'Fan', p_inicial:inicial, p_inicial_fecha:inicial === null ? null : inicialF, p_clase:ing.fondoClase || 'fondo', p_ref_isin:ref }));
+const idF = ing.fondoId || crypto.randomUUID();
+const ok = await ingOp(async () => { await rpc('fondos_guardar', { p_codigo:ing.code, p_id:idF, p_nombre:nombre, p_isin:isin, p_aporte:aporte, p_periodicidad:$('vPer').value, p_aporte_desde:aporte === null ? null : desde, p_aporte_hasta:aporte === null ? null : hasta,
+p_base_fecha:valor === null ? null : fecha, p_base_aportado:valor === null ? null : aportado, p_base_valor:valor, p_rent_anual:rent, p_persona:miembroFan() || 'Fan', p_inicial:inicial, p_inicial_fecha:inicial === null ? null : inicialF, p_clase:ing.fondoClase || 'fondo', p_ref_isin:ref });
+if (ing.histTmp) await rpc('fondos_historico', { p_codigo:ing.code, p_id:idF, p_historico:ing.histTmp });
+else if (ing.histQuitar && ing.fondoId) await rpc('fondos_historico', { p_codigo:ing.code, p_id:idF, p_historico:null });
+});
 $('vSave').disabled = false;
 if (ok || ing.estado !== 'ok') { $('vDlg').close(); const ef = ISIN_RE.test(isin) ? isin : ISIN_RE.test(ref) ? ref : ''; if (ok && ef) cargarPrecios(ef, true); } else $('vErr').textContent = ing.msg;
 }
@@ -1363,6 +1425,9 @@ $('iHor').addEventListener('change', () => { ing.horizonte = $('iHor').value; LS
 let rzp; new ResizeObserver(() => { clearTimeout(rzp); rzp = setTimeout(() => { if (sag.view === 'inv' && ing.estado === 'ok' && ing.sub === 'fondos') pintarProy(); }, 80); }).observe($('iProyBox'));
 $('vForm').addEventListener('submit', guardarFondo);
 $('vCancel').onclick = () => $('vDlg').close();
+let thv; $('vHist').addEventListener('input', () => { clearTimeout(thv); thv = setTimeout(leerHistorico, 350); });
+$('vHistF').addEventListener('change', () => { const f = $('vHistF').files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { $('vHist').value = String(r.result || ''); leerHistorico(); }; r.readAsText(f); });
+$('vHistQuitar').onclick = () => { ing.histQuitar = true; ing.histTmp = null; $('vHist').value = ''; $('vHistInfo').textContent = 'Se quitará el histórico guardado al pulsar Guardar.'; };
 $('vDel').onclick = borrarFondo;
 $('xForm').addEventListener('submit', guardarExtra);
 $('xCancel').onclick = () => $('xDlg').close();
