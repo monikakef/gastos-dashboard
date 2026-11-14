@@ -105,7 +105,8 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .hscroll { flex:1; min-height:120px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
 .hscroll svg { display:block; }
 .sagRow { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
-.sagRow .sagChart { flex:1.6; min-height:190px; }
+.sagRow .legend i.sq { width:10px; height:10px; border-top:0; border-radius:2px; vertical-align:baseline; }
+.sagChart { flex:1.6; min-height:190px; }
 .sagRow .catsCard { flex:1; min-height:110px; }
 .sagChart .seg button { padding:3px 9px; font-size:12px; }
 .btn.sm { padding:8px 14px; font-size:14px; }
@@ -278,8 +279,11 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <h3 id="vTitulo" style="margin:0 0 10px;font-size:17px">Nuevo fondo</h3>
 <label>Nombre del fondo<input id="vNombre" type="text" maxlength="40" required placeholder="Mi fondo indexado"></label>
 <label>ISIN, para buscar los precios (opcional)<input id="vIsin" type="text" maxlength="12" autocapitalize="characters" placeholder="IE00B03HD191" style="text-transform:uppercase"></label>
-<div class="vSec">Lo que aportas</div>
-<label>Importe de cada aportación (€)<input type="number" id="vAporte" step="0.01" min="0.01" inputmode="decimal" placeholder="50"></label>
+<div class="vSec">Aportación inicial (opcional)</div>
+<label>Importe de la aportación inicial (€)<input type="number" id="vInicial" step="0.01" min="0.01" inputmode="decimal" placeholder="500"></label>
+<label>Fecha de la aportación inicial<input type="date" id="vInicialF"></label>
+<div class="vSec">Aportación periódica (opcional)</div>
+<label>Importe de cada aportación periódica (€)<input type="number" id="vAporte" step="0.01" min="0.01" inputmode="decimal" placeholder="50"></label>
 <label>Frecuencia<select id="vPer"><option value="mensual">Cada mes</option><option value="trimestral">Cada 3 meses</option><option value="semestral">Cada 6 meses</option><option value="anual">Cada año</option></select></label>
 <label>Fecha de la primera aportación<input type="date" id="vDesde"></label>
 <label>Hasta (opcional: si no, sigue activa)<input type="date" id="vHasta"></label>
@@ -587,7 +591,7 @@ return j;
 async function ingListar() {
 const [rows, fon] = await Promise.all([rpc('ingresos_listar', { p_codigo:ing.code }), rpc('fondos_listar', { p_codigo:ing.code })]);
 ing.fondos = fon.map(f => ({ id:f.id, nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
-baseFecha:f.base_fecha, baseAportado:f.base_aportado == null ? null : Number(f.base_aportado), baseValor:f.base_valor == null ? null : Number(f.base_valor), rent:f.rent_anual == null ? null : Number(f.rent_anual), persona:f.persona }));
+inicial:f.inicial == null ? null : Number(f.inicial), inicialFecha:f.inicial_fecha, baseFecha:f.base_fecha, baseAportado:f.base_aportado == null ? null : Number(f.base_aportado), baseValor:f.base_valor == null ? null : Number(f.base_valor), rent:f.rent_anual == null ? null : Number(f.rent_anual), persona:f.persona }));
 ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso', per:r.periodicidad || 'unica', fin:r.fecha_fin || null, rent:r.rent_anual == null ? null : Number(r.rent_anual), fondoId:r.fondo_id || null }));
 ing.items.forEach(t => { if (t.fondoId) { t.extra = true; const f = ing.fondos.find(x => x.id === t.fondoId); if (f) t.cat = f.nombre; } });  // aportaciones extraordinarias de un fondo
 }
@@ -686,7 +690,8 @@ fetch(SB.url + '/functions/v1/precios-fondo', { method:'POST', headers:{ apikey:
 }
 // Aportaciones periódicas de los fondos (desde la primera hasta la fecha dada), con el mismo formato que las aportaciones sueltas.
 function aportesFondos(hasta) {
-return ing.fondos.filter(f => f.aporte && f.desde).flatMap(f => ocurrencias({ id:f.id, fondoId:f.id, tipo:'inversion', d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta, cat:f.nombre, desc:f.nombre, p:f.persona || miembroFan() || 'Fan' }, hasta));
+const iniciales = ing.fondos.filter(f => f.inicial && f.inicialFecha && f.inicialFecha <= hasta).map(f => ({ id:f.id, fondoId:f.id, tipo:'inversion', d:f.inicialFecha, amount:f.inicial, per:'unica', inicial:true, cat:f.nombre, desc:f.nombre, p:f.persona || miembroFan() || 'Fan' }));
+return [...iniciales, ...ing.fondos.filter(f => f.aporte && f.desde).flatMap(f => ocurrencias({ id:f.id, fondoId:f.id, tipo:'inversion', d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta, cat:f.nombre, desc:f.nombre, p:f.persona || miembroFan() || 'Fan' }, hasta))];
 }
 function modeloFondos(anios) {
 const hoy = hoyStr(), tope = sumarMeses(hoy, anios * 12);
@@ -695,12 +700,13 @@ const isin = f.isin, px = isin && precios[isin] && precios[isin].estado === 'ok'
 const plan = f.aporte && f.desde ? ocurrencias({ d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta }, tope) : [];
 const ex = ing.items.filter(t => t.tipo === 'inversion' && t.fondoId === f.id).map(t => ({ d:t.d, amount:t.amount }));   // extraordinarias de este fondo
 const anclado = f.baseValor != null && !!f.baseFecha;
-const primera = [f.desde, ...ex.map(t => t.d)].filter(Boolean).sort()[0];
+const puntuales = [...(f.inicial && f.inicialFecha ? [{ d:f.inicialFecha, amount:f.inicial }] : []), ...ex];   // aportación inicial + extraordinarias
+const primera = [f.desde, ...puntuales.map(t => t.d)].filter(Boolean).sort()[0];
 const d0 = anclado ? f.baseFecha : sumarDias(primera || hoy, -1), v0 = anclado ? f.baseValor : 0;
-const aport0 = !anclado ? 0 : f.baseAportado != null ? f.baseAportado : [...plan, ...ex].filter(t => t.d <= d0).reduce((s, t) => s + t.amount, 0);
+const aport0 = !anclado ? 0 : f.baseAportado != null ? f.baseAportado : [...plan, ...puntuales].filter(t => t.d <= d0).reduce((s, t) => s + t.amount, 0);
 const F = { id:f.id, nombre:f.nombre, isin, f, d0, v0, aport0, anclado, rManual:(f.rent || 0) / 100, rOver:f.rent == null ? null : f.rent / 100, px,
 pxEstado:isin ? (precios[isin] ? precios[isin].estado : 'pendiente') : 'sin', pxMsg:isin && precios[isin] ? precios[isin].msg : '',
-ap:[...plan, ...ex].filter(t => t.d > d0).map(t => ({ d:t.d, a:t.amount })).sort((a, b) => a.d < b.d ? -1 : 1), extras:ex };
+ap:[...plan, ...puntuales].filter(t => t.d > d0).map(t => ({ d:t.d, a:t.amount })).sort((a, b) => a.d < b.d ? -1 : 1), extras:ex };
 if (px) {
 const s = px.serie, last = s[s.length - 1], lim = sumarMeses(last[0], -60);
 let i0 = 0; while (i0 < s.length - 1 && s[i0][0] < lim) i0++;
@@ -750,14 +756,15 @@ const precio = !f.isin ? 'sin ISIN: estimación manual' : f.px ? `VL ${f.navHoy.
 const pct = f.aportado > 0 ? ' (' + (f.gan >= 0 ? '+' : '') + pc(f.gan / f.aportado * 100) + ' %)' : '';
 const plan = f.f.aporte ? `Aportas ${eur0.format(f.f.aporte)} ${NOMBRE_PER[f.f.per]} desde ${corta(f.f.desde)}${f.f.hasta ? ' hasta ' + corta(f.f.hasta) : ''}` : 'sin aportación periódica';
 const base = f.anclado ? `Partes de ${eur0.format(f.v0)} (aportado ${eur0.format(f.aport0)}) el ${corta(f.d0)}` : 'Reconstruido desde la primera aportación';
+const iniTxt = f.f.inicial ? `Inicial ${eur0.format(f.f.inicial)} (${corta(f.f.inicialFecha)}) · ` : '';
 const extrasTxt = f.extras.length ? ` · ${f.extras.length} extra${f.extras.length === 1 ? '' : 's'} (${eur0.format(f.extras.reduce((s, t) => s + t.amount, 0))})` : '';
 return `<div class="row" data-fondo="${esc(f.nombre)}" style="cursor:pointer;${ing.fondoSel === norm(f.nombre) ? 'background:var(--grid);border-radius:8px;padding-left:6px;padding-right:6px' : ''}"><div>
 <div class="d">${esc(f.nombre)} <button class="btn2" data-edit="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">Editar</button><button class="btn2" data-extra="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">+ Aportación</button></div>
 <div class="c">${f.isin ? esc(f.isin) + ' · ' : ''}${precio}</div>
-<div class="c">${plan}${extrasTxt} · ${base}</div>
+<div class="c">${iniTxt}${plan}${extrasTxt} · ${base}</div>
 <div class="c">Aportado ${eur0.format(f.aportado)} · beneficio <span class="${f.gan >= 0 ? 'pos' : 'neg'}">${f.gan >= 0 ? '+' : ''}${eur0.format(f.gan)}${pct}</span> · rentab. ${pc(f.r * 100)} %/año (${f.rFuente})</div>
 </div><div class="m num">${eur.format(f.hoy)}</div></div>`;
-}).join('') : '<div class="empty" style="padding:8px 0;font-size:13px">Pulsa «+ Nuevo fondo» e indica su ISIN, cuánto aportas cada mes y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Busco los precios, estimo su valor de hoy y proyecto su evolución.</div>';
+}).join('') : '<div class="empty" style="padding:8px 0;font-size:13px">Pulsa «+ Nuevo fondo» e indica su ISIN, tu aportación inicial y/o cuánto aportas cada mes (la periódica es opcional) y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Busco los precios, estimo su valor de hoy y proyecto su evolución.</div>';
 }
 function pintarProy() {
 const fs = modeloFondos(+ing.horizonte), sel = ing.fondoSel ? fs.filter(f => norm(f.nombre) === ing.fondoSel) : fs, box = $('iProyBox');
@@ -834,6 +841,7 @@ const f = id ? ing.fondos.find(x => x.id === id) : null;
 ing.fondoId = f ? f.id : null;
 $('vTitulo').textContent = f ? 'Editar fondo' : 'Nuevo fondo';
 $('vNombre').value = f ? f.nombre : ''; $('vIsin').value = f ? f.isin : '';
+$('vInicial').value = f && f.inicial ? f.inicial : ''; $('vInicialF').value = f && f.inicialFecha ? f.inicialFecha : '';
 $('vAporte').value = f && f.aporte ? f.aporte : ''; $('vPer').value = f ? f.per : 'mensual';
 $('vDesde').value = f && f.desde ? f.desde : ''; $('vHasta').value = f && f.hasta ? f.hasta : '';
 $('vAportado').value = f && f.baseAportado != null ? f.baseAportado : ''; $('vValor').value = f && f.baseValor != null ? f.baseValor : '';
@@ -848,21 +856,23 @@ async function guardarFondo(e) {
 e.preventDefault();
 const num = id => $(id).value === '' ? null : Math.round(parseFloat($(id).value) * 100) / 100;
 const nombre = $('vNombre').value.trim(), isin = $('vIsin').value.trim().toUpperCase(), aporte = num('vAporte'), desde = $('vDesde').value || null, hasta = $('vHasta').value || null;
-const valor = num('vValor'), aportado = num('vAportado'), fecha = $('vFecha').value || null, rent = num('vRent');
+const valor = num('vValor'), aportado = num('vAportado'), fecha = $('vFecha').value || null, rent = num('vRent'), inicial = num('vInicial'), inicialF = $('vInicialF').value || null;
 const err = m => { $('vErr').textContent = m; };
 if (!nombre) return err('Pon un nombre al fondo.');
 if (isin && !ISIN_RE.test(isin)) return err('El ISIN debe tener 12 caracteres (por ejemplo, IE00B03HD191).');
+if (inicial !== null && !(inicial > 0)) return err('La aportación inicial debe ser mayor que 0.');
+if (inicial !== null && !inicialF) return err('Indica la fecha de la aportación inicial.');
 if (aporte !== null && !(aporte > 0)) return err('La aportación debe ser mayor que 0.');
 if (aporte !== null && !desde) return err('Indica la fecha de la primera aportación.');
 if (hasta && desde && hasta < desde) return err('La fecha final no puede ser anterior al inicio.');
 if (valor !== null && !(valor > 0)) return err('El valor actual debe ser mayor que 0.');
 if (valor !== null && !fecha) return err('Indica la fecha de ese valor.');
 if (aportado !== null && aportado < 0) return err('Lo aportado no puede ser negativo.');
-if (aporte === null && valor === null) return err('Indica una aportación periódica o el valor actual del fondo.');
+if (aporte === null && valor === null && inicial === null) return err('Indica una aportación (inicial o periódica) o el valor actual del fondo.');
 if (rent !== null && (rent < -100 || rent > 100)) return err('La rentabilidad debe estar entre -100 y 100.');
 $('vSave').disabled = true;
 const ok = await ingOp(() => rpc('fondos_guardar', { p_codigo:ing.code, p_id:ing.fondoId || crypto.randomUUID(), p_nombre:nombre, p_isin:isin, p_aporte:aporte, p_periodicidad:$('vPer').value, p_aporte_desde:aporte === null ? null : desde, p_aporte_hasta:aporte === null ? null : hasta,
-p_base_fecha:valor === null ? null : fecha, p_base_aportado:valor === null ? null : aportado, p_base_valor:valor, p_rent_anual:rent, p_persona:miembroFan() || 'Fan' }));
+p_base_fecha:valor === null ? null : fecha, p_base_aportado:valor === null ? null : aportado, p_base_valor:valor, p_rent_anual:rent, p_persona:miembroFan() || 'Fan', p_inicial:inicial, p_inicial_fecha:inicial === null ? null : inicialF }));
 $('vSave').disabled = false;
 if (ok || ing.estado !== 'ok') { $('vDlg').close(); if (ok && isin) cargarPrecios(isin, true); } else $('vErr').textContent = ing.msg;
 }
@@ -870,6 +880,30 @@ async function borrarFondo() {
 if (!ing.fondoId || !confirm('¿Eliminar este fondo y sus aportaciones periódicas? No se puede deshacer.')) return;
 const ok = await ingOp(() => rpc('fondos_borrar', { p_codigo:ing.code, p_id:ing.fondoId }));
 if (ok || ing.estado !== 'ok') $('vDlg').close(); else $('vErr').textContent = ing.msg;
+}
+// Gráfica del Resumen: por periodo, una barra de ingresos y otra apilada con la inversión abajo (lo más estable) y los gastos encima; las medias, como líneas.
+function dibujarResumen(box, c, selIdx, irAlFinal) {
+const { keys, yr, cy, hm, ing:ii, gas, inv, mIng, mGas, mInv } = c, n = keys.length, prevScroll = box.scrollLeft;
+const cw = Math.max(box.clientWidth, 200), H = Math.max(box.clientHeight, 120);
+const step = Math.min(Math.max(yr ? 84 : 64, cw / n), 120), W = Math.max(cw, n * step), T = 18, B = 22, bw = step * 0.34, gap = step * 0.05;
+const mx = Math.max(...ii, ...gas.map((v, k) => v + inv[k]), mIng, mGas + mInv, 1) * 1.04;
+const y = v => T + (1 - v / mx) * (H - T - B);
+const fk = v => v >= 1000 ? (v / 1000).toLocaleString('es-ES', { maximumFractionDigits:1 }) + 'k' : String(Math.round(v));
+let g = [0, .5, 1].map(f => `<line x1="0" x2="${W}" y1="${y(mx * f).toFixed(1)}" y2="${y(mx * f).toFixed(1)}" stroke="var(--grid)"/>`).join('');
+const rect = (x, v0, v1, color, op, sel) => v1 > v0 ? `<rect x="${x.toFixed(1)}" y="${y(v1).toFixed(1)}" width="${bw.toFixed(1)}" height="${(y(v0) - y(v1)).toFixed(1)}" fill="${color}" opacity="${op}" ${sel ? 'stroke="var(--ink)" stroke-width="1.2"' : ''}/>` : '';
+keys.forEach((k, i) => {
+const cur = yr ? k === cy : k === hm, op = cur ? .55 : 1, sel = i === selIdx, x0 = i * step + (step - (2 * bw + gap)) / 2, x1 = x0 + bw + gap, ap = inv[i] + gas[i];
+g += rect(x0, 0, ii[i], 'var(--good)', op, sel) + rect(x1, 0, inv[i], 'var(--s1)', op, sel) + rect(x1, inv[i], ap, 'var(--s2)', op, sel);
+if (ii[i] > 0) g += `<text x="${(x0 + bw / 2).toFixed(1)}" y="${(y(ii[i]) - 4).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--ink2)">${fk(ii[i])}</text>`;
+if (ap > 0) g += `<text x="${(x1 + bw / 2).toFixed(1)}" y="${(y(ap) - 4).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--ink2)">${fk(ap)}</text>`;
+g += `<text x="${(i * step + step / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10.5" fill="${sel ? 'var(--ink)' : 'var(--ink3)'}" ${sel ? 'font-weight="600"' : ''}>${esc(yr ? k : shortMonth(k))}</text>`;
+g += `<rect data-i="${i}" x="${i * step}" y="0" width="${step}" height="${H}" fill="transparent" style="cursor:pointer"/>`;
+});
+// medias: ingresos, inversión (abajo) y gastos (a la altura de inversión + gastos, como en la barra apilada)
+const media = (v, color) => v > 0 ? `<line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--card)" stroke-width="4" opacity=".75" pointer-events="none"/><line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${color}" stroke-width="1.9" stroke-dasharray="6 4" pointer-events="none"/>` : '';
+g += media(mIng, 'var(--good)') + media(mInv, 'var(--s1)') + media(mInv + mGas, 'var(--s2)');
+box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Ingresos frente a gastos e inversión por ${yr ? 'año' : 'mes'}">${g}</svg>`;
+box.scrollLeft = irAlFinal ? box.scrollWidth : prevScroll;
 }
 function pintarIng() {
 document.querySelectorAll('#iWho button').forEach(b => b.setAttribute('aria-pressed', b.dataset.p === state.who));
@@ -936,13 +970,22 @@ tile(2, yr ? 'Media anual' : 'Media mensual', eur0.format(keys.length ? sumAll /
 tile(3, 'Máximo', eur0.format(Math.max(0, ...vals)));
 tile(4, 'Movimientos', its.length);
 }
-$('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span><span class="legend"><span><i style="border-top:2.5px solid ${res ? 'var(--good)' : 'var(--s1)'}"></i>${res ? 'ingresos' : 'inversión'}</span>`
-+ (res ? `<span><i style="border-top:2.5px solid var(--s2)"></i>gastos${sagTxt}</span>` + (vistaFan() ? '<span><i style="border-top:2.5px solid var(--s1)"></i>inversión</span>' : '') : '') + '</span>';
-$('iDetail').innerHTML = its.length ? `<b>${esc(lbl)}</b>: ${nIng.length} ${res ? 'ingreso' : 'aportación'}${nIng.length === 1 ? '' : (res ? 's' : 'es')}` : X.vacio;
 $('iCount').textContent = nIng.length ? nIng.length + ' mov.' : '';
-ing.ctx = { keys, vals, yr, cy, hm, color:res ? 'var(--good)' : 'var(--s1)', lines:res ? [{ vals:gas, color:'var(--s2)' }, ...(vistaFan() ? [{ vals:inv, color:'var(--s1)' }] : [])] : [], i };
-dibujarBarras($('iRows'), ing.ctx, i, ing.fresh); ing.fresh = false;
-$('iList').innerHTML = [...nIng].sort((a, b) => b.d.localeCompare(a.d)).map(t => `<div class="row" data-id="${esc(t.id)}"${t.rec && t.fondoId ? ' data-fid="1"' : ''}${t.extra ? ' data-xid="1"' : ''}><div><div class="d">${esc(t.desc || t.cat || (res ? 'Ingreso' : 'Inversión'))}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' })}</b> · ${esc(t.cat || 'Sin categoría')} · ${esc(t.p)}${t.rec ? ' · ↻ ' + NOMBRE_PER[t.per] : t.extra ? ' · extraordinaria' : ''}</div></div><div class="m num ${res ? 'pos' : ''}">${eur.format(t.amount)}</div></div>`).join('') || `<div class="empty">Sin ${res ? 'ingresos' : 'inversiones'} en este periodo</div>`;
+if (res) {
+const invV = vistaFan() ? inv : inv.map(() => 0), prom = a => keys.length ? a.reduce((s, v) => s + v, 0) / keys.length : 0, mIng = prom(vals), mGas = prom(gas), mInv = prom(invV);
+$('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span><span class="legend"><span><i class="sq" style="background:var(--good)"></i>ingresos · media ${eur0.format(mIng)}</span><span><i class="sq" style="background:var(--s2)"></i>gastos${sagTxt} · media ${eur0.format(mGas)}</span>`
++ (vistaFan() ? `<span><i class="sq" style="background:var(--s1)"></i>inversión · media ${eur0.format(mInv)}</span>` : '') + '<span style="color:var(--ink3)">- - medias</span></span>';
+$('iDetail').innerHTML = `<b>${esc(lbl)}</b>: ingresos ${eur0.format(vals[i])} · gastos ${eur0.format(gas[i])}` + (vistaFan() ? ` · inversión ${eur0.format(invV[i])}` : '');
+ing.ctx = { keys, yr, cy, hm, ing:vals, gas, inv:invV, mIng, mGas, mInv, i };
+dibujarResumen($('iRows'), ing.ctx, i, ing.fresh);
+} else {
+$('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span><span class="legend"><span><i style="border-top:2.5px solid var(--s1)"></i>inversión</span></span>`;
+$('iDetail').innerHTML = its.length ? `<b>${esc(lbl)}</b>: ${nIng.length} aportación${nIng.length === 1 ? '' : 'es'}` : X.vacio;
+ing.ctx = { keys, vals, yr, cy, hm, color:'var(--s1)', lines:[], i };
+dibujarBarras($('iRows'), ing.ctx, i, ing.fresh);
+}
+ing.fresh = false;
+$('iList').innerHTML = [...nIng].sort((a, b) => b.d.localeCompare(a.d)).map(t => `<div class="row" data-id="${esc(t.id)}"${(t.rec && t.fondoId) || t.inicial ? ' data-fid="1"' : ''}${t.extra ? ' data-xid="1"' : ''}><div><div class="d">${esc(t.desc || t.cat || (res ? 'Ingreso' : 'Inversión'))}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' })}</b> · ${esc(t.cat || 'Sin categoría')} · ${esc(t.p)}${t.rec ? ' · ↻ ' + NOMBRE_PER[t.per] : t.extra ? ' · extraordinaria' : t.inicial ? ' · aportación inicial' : ''}</div></div><div class="m num ${res ? 'pos' : ''}">${eur.format(t.amount)}</div></div>`).join('') || `<div class="empty">Sin ${res ? 'ingresos' : 'inversiones'} en este periodo</div>`;
 }
 function abrirIng(id) {
 const t = id ? ing.items.find(x => x.id === id) : null, m = t ? t.tipo : modoIng(), X = TXT_ING[m];
