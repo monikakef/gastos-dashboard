@@ -96,6 +96,16 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 #hist .top { flex-wrap:wrap; }
 .hscroll { flex:1; min-height:120px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
 .hscroll svg { display:block; }
+.hbody { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
+.hbody .hscroll { flex:1.2; }
+.hside { flex:1; min-height:90px; display:flex; flex-direction:column; border-top:1px solid var(--line); padding-top:6px; }
+.hside .row .c b { color:var(--ink2); font-weight:600; }
+@media (min-width:900px) {
+#hist { max-width:1100px; }
+.hbody { flex-direction:row; gap:12px; }
+.hbody .hscroll { flex:1; min-width:0; }
+.hside { flex:0 0 38%; min-height:0; border-top:0; border-left:1px solid var(--line); padding:0 0 0 12px; }
+}
 .chips { display:flex; flex-wrap:wrap; gap:6px; max-height:92px; overflow:auto; -webkit-overflow-scrolling:touch; }
 .chips button { border:1px solid var(--line); background:none; color:var(--ink2); padding:4px 10px; border-radius:999px; font-size:12.5px; }
 .chips button[aria-pressed=true] { background:var(--s1); border-color:var(--s1); color:#fff; font-weight:600; }
@@ -188,7 +198,7 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <div class="tile"><div class="label">Movimientos</div><div class="v num" id="hT3"></div></div>
 </div>
 </section>
-<section class="card catsCard"><h2 id="hTitle"></h2><div class="delta" id="hDetail" style="margin:0 0 4px"></div><div class="hscroll" id="hRows"></div></section>
+<section class="card catsCard"><h2 id="hTitle"></h2><div class="delta" id="hDetail" style="margin:0 0 4px"></div><div class="hbody"><div class="hscroll" id="hRows"></div><div class="hside"><div class="scroll" id="hList"></div></div></div></section>
 </section>
 <section class="sag hidden" id="sag">
 <div class="top">
@@ -334,7 +344,7 @@ const mxI = vals.length ? vals.indexOf(Math.max(...vals)) : -1;
 $('hT2').textContent = mxI < 0 ? '—' : eur0.format(vals[mxI]);
 $('hT3').textContent = sel.length;
 $('hTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span><span class="label">${mxI < 0 ? '' : 'máx. ' + esc(lbl(keys[mxI]))}</span>`;
-hist.ctx = { keys, vals, yr, cy, hm, lbl };
+hist.ctx = { keys, vals, yr, cy, hm, lbl, items:sel, key };
 hist.sel = keys.length - 1;
 dibujarHist(true);
 }
@@ -343,7 +353,7 @@ function dibujarHist(irAlFinal) {
 const c = hist.ctx, box = $('hRows');
 if (!c) return;
 const { keys, vals, yr, cy, hm, lbl } = c;
-if (!keys.length) { box.innerHTML = '<div class="empty">Sin gastos con este filtro</div>'; $('hDetail').innerHTML = ''; return; }
+if (!keys.length) { box.innerHTML = '<div class="empty">Sin gastos con este filtro</div>'; $('hDetail').innerHTML = ''; $('hList').innerHTML = ''; return; }
 const prevScroll = box.scrollLeft;
 const cw = Math.max(box.clientWidth, 200), H = Math.max(box.clientHeight, 120);
 const step = Math.min(Math.max(yr ? 70 : 44, cw / keys.length), 96), W = Math.max(cw, keys.length * step);
@@ -362,6 +372,9 @@ box.scrollLeft = irAlFinal ? box.scrollWidth : prevScroll;
 const i = hist.sel, v = vals[i], cur = yr ? keys[i] === cy : keys[i] === hm;
 const vs = cur ? '<span class="n">en curso</span>' : i > 0 && vals[i - 1] > 0 ? `${chip(v, vals[i - 1])} <span class="n">vs ${yr ? 'año' : 'mes'} anterior</span>` : '';
 $('hDetail').innerHTML = `<b>${esc(lbl(keys[i]))}</b>: <span class="num">${eur.format(v)}</span> ${vs}`;
+const lista = c.items.filter(t => c.key(t) === keys[i]).sort((a, b) => b.d.localeCompare(a.d));
+$('hList').innerHTML = lista.map(t => `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' })}</b> · ${esc(catOf(t))} · pagó ${esc(t.paid)}${state.who !== 'Total' && t.total !== importe(t) ? ` · total ${eur.format(t.total)}` : ''}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`).join('') || '<div class="empty">Sin gastos</div>';
+$('hList').scrollTop = 0;
 }
 const sag = { view:LS('view') || 'gastos', period:LS('sagPeriod') || 'mes', month:null, months:[], items:[] };
 function iniciarSagunto() {
