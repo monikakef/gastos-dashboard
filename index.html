@@ -96,15 +96,19 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 #hist .top { flex-wrap:wrap; }
 .hscroll { flex:1; min-height:120px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
 .hscroll svg { display:block; }
-.sagChart { flex:1.2; min-height:170px; }
-#sag .catsCard { flex:1; min-height:110px; }
+.sagRow { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
+.sagRow .sagChart { flex:1.6; min-height:190px; }
+.sagRow .catsCard { flex:1; min-height:110px; }
 .sagChart .seg button { padding:3px 9px; font-size:12px; }
 .hbody { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
 .hbody .hscroll { flex:1.2; }
 .hside { flex:1; min-height:90px; display:flex; flex-direction:column; border-top:1px solid var(--line); padding-top:6px; }
 .hside .row .c b { color:var(--ink2); font-weight:600; }
 @media (min-width:900px) {
-#hist { max-width:1100px; }
+#hist, #sag { max-width:1100px; }
+.sagRow { flex-direction:row; gap:10px; }
+.sagRow .sagChart { flex:1.8; min-width:0; min-height:0; }
+.sagRow .catsCard { flex:1; min-width:0; min-height:0; }
 .hbody { flex-direction:row; gap:12px; }
 .hbody .hscroll { flex:1; min-width:0; }
 .hside { flex:0 0 38%; min-height:0; border-top:0; border-left:1px solid var(--line); padding:0 0 0 12px; }
@@ -225,12 +229,14 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <div class="tile"><div class="label">Movimientos</div><div class="v num" id="sT3"></div></div>
 </div>
 </section>
+<div class="sagRow">
 <section class="card sagChart">
 <h2><span>Evolución</span><div class="seg" id="sGran" role="group" aria-label="Agrupar por"><button data-g="m" aria-pressed="true">Meses</button><button data-g="y" aria-pressed="false">Años</button></div></h2>
 <div class="delta" id="sDetail" style="margin:0 0 4px"></div>
 <div class="hscroll" id="sBars"></div>
 </section>
 <section class="card catsCard"><h2>Por categoría</h2><div class="scroll" id="sCats"></div></section>
+</div>
 </section>
 <div class="foot"><span id="updated"></span> <button id="reload">Recargar</button> <button id="logout">Salir</button></div>
 </main>
