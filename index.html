@@ -96,7 +96,8 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .empty { color:var(--ink2); text-align:center; padding:18px 0; }
 .foot { flex:none; color:var(--ink3); font-size:11px; text-align:center; }
 .foot button { background:none; border:0; color:var(--s1); font-size:11px; padding:2px 6px; }
-.views { flex:none; display:flex; } .views .seg { width:100%; } .views .seg button { flex:1; font-size:14px; padding:7px 10px; }
+.views { flex:none; display:flex; } .views .seg { width:100%; } .views .seg button { flex:1; min-width:0; font-size:13px; padding:7px 4px; white-space:nowrap; }
+@media (min-width:480px) { .views .seg button { font-size:14px; padding:7px 10px; } }
 .sag { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
 .sag .catsCard { flex:1; }
 .sag .hero .big { font-size:36px; }
@@ -111,6 +112,9 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .btn2 { padding:8px 14px; font-size:14px; border-radius:12px; border:1px solid var(--line); background:none; color:var(--ink); }
 .btn2.danger { color:var(--bad); }
 #ing .top { flex-wrap:wrap; }
+#ing .tiles { grid-template-columns:repeat(4, 1fr); }
+#iTitle { align-items:flex-start; } #iTitle > span:first-child { white-space:nowrap; } #iTitle .legend { justify-content:flex-end; }
+#ing .tile .label { font-size:11.5px; }
 #ing .row { cursor:pointer; }
 .m.pos, .pos { color:var(--good); } .neg { color:var(--bad); }
 dialog { background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:16px; padding:16px; width:min(92vw,380px); }
@@ -165,8 +169,9 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <div class="views" id="views"><div class="seg" role="group" aria-label="Vista">
 <button data-v="gastos" aria-pressed="true">Gastos</button>
 <button data-v="hist" aria-pressed="false">Categorías</button>
-<button data-v="ing" aria-pressed="false">Ingresos</button>
 <button data-v="sagunto" id="vSag" class="hidden" aria-pressed="false">Sagunto</button>
+<button data-v="inv" aria-pressed="false">Inversión</button>
+<button data-v="ing" aria-pressed="false">Resumen</button>
 </div></div>
 <div class="top">
 <div class="month">
@@ -223,9 +228,10 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <div class="label" id="iLabel"></div>
 <div class="big num" id="iHero" style="color:var(--good)"></div>
 <div class="tiles">
-<div class="tile"><div class="label">Gastos</div><div class="v num" id="iT1"></div></div>
-<div class="tile"><div class="label">Balance</div><div class="v num" id="iT2"></div></div>
+<div class="tile"><div class="label" id="iT1L"></div><div class="v num" id="iT1"></div></div>
+<div class="tile"><div class="label" id="iT2L"></div><div class="v num" id="iT2"></div></div>
 <div class="tile"><div class="label" id="iT3L"></div><div class="v num" id="iT3"></div></div>
+<div class="tile"><div class="label" id="iT4L"></div><div class="v num" id="iT4"></div></div>
 </div>
 </section>
 <div class="sagRow">
@@ -234,7 +240,7 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <div class="delta" id="iDetail" style="margin:0 0 4px"></div>
 <div class="hscroll" id="iRows"></div>
 </section>
-<section class="card catsCard"><h2><span>Ingresos del periodo</span><span class="label" id="iCount"></span></h2><div class="scroll" id="iList"></div></section>
+<section class="card catsCard"><h2><span id="iListT">Ingresos del periodo</span><span class="label" id="iCount"></span></h2><div class="scroll" id="iList"></div></section>
 </div>
 </section>
 <dialog id="iDlg">
@@ -437,11 +443,11 @@ dibujarHist(true);
 }
 const shortMonth = k => { const [y, mo] = k.split('-').map(Number); return new Date(y, mo - 1, 1).toLocaleDateString('es-ES', { month:'short' }).replace('.', '') + ' ' + String(y).slice(2); };
 function dibujarBarras(box, c, selIdx, irAlFinal) {  // gráfica de barras verticales con scroll horizontal
-const { keys, vals, yr, cy, hm, avg, color, line } = c;
+const { keys, vals, yr, cy, hm, avg, color, lines } = c;  // lines: [{ vals, color }] series superpuestas
 const prevScroll = box.scrollLeft;
 const cw = Math.max(box.clientWidth, 200), H = Math.max(box.clientHeight, 120);
 const step = Math.min(Math.max(yr ? 70 : 44, cw / keys.length), 96), W = Math.max(cw, keys.length * step);
-const T = 18, B = 22, mx = Math.max(...vals, ...(line || []), 1) * 1.02, bw = step * 0.62;
+const T = 18, B = 22, mx = Math.max(...vals, ...(lines || []).flatMap(l => l.vals), 1) * 1.02, bw = step * 0.62;
 const y = v => T + (1 - v / mx) * (H - T - B);
 let g = [0, .5, 1].map(f => `<line x1="0" x2="${W}" y1="${y(mx * f)}" y2="${y(mx * f)}" stroke="var(--grid)"/>`).join('');
 keys.forEach((k, i) => {
@@ -452,8 +458,10 @@ g += `<text x="${(i * step + step / 2).toFixed(1)}" y="${H - 6}" text-anchor="mi
 g += `<rect data-i="${i}" x="${i * step}" y="0" width="${step}" height="${H}" fill="transparent" style="cursor:pointer"/>`;
 });
 if (avg > 0) g += `<line x1="0" x2="${W}" y1="${y(avg).toFixed(1)}" y2="${y(avg).toFixed(1)}" stroke="var(--s2)" stroke-width="1.8" stroke-dasharray="5 4" pointer-events="none"/>`;
-if (line) g += `<polyline points="${line.map((v, i) => `${(i * step + step / 2).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--s2)" stroke-width="2.2" stroke-linejoin="round" pointer-events="none"/>`
-+ line.map((v, i) => `<circle cx="${(i * step + step / 2).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.2" fill="var(--s2)" pointer-events="none"/>`).join('');
+(lines || []).forEach(L => {
+g += `<polyline points="${L.vals.map((v, i) => `${(i * step + step / 2).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="${L.color}" stroke-width="2.2" stroke-linejoin="round" pointer-events="none"/>`
++ L.vals.map((v, i) => `<circle cx="${(i * step + step / 2).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.2" fill="${L.color}" pointer-events="none"/>`).join('');
+});
 box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Importe por ${yr ? 'año' : 'mes'}">${g}</svg>`;
 box.scrollLeft = irAlFinal ? box.scrollWidth : prevScroll;
 }
@@ -504,10 +512,14 @@ for (let m = ms[0]; m <= ms[ms.length - 1]; m = shiftMonth(m, 1)) sag.months.pus
 sag.month = hm;
 setView();
 }
-/* ---------- Ingresos: filas en Supabase, protegidas con un código de acceso propio ---------- */
+/* ---------- Resumen e Inversión: filas en Supabase, protegidas con un código de acceso propio ---------- */
 const SB = { url:'https://gzewqeoqsgoljzuglwpc.supabase.co', key:'sb_publishable_d2gsiwOPJwDyoKoIjgKIvA_WbVyoBJf' };
 const ing = { items:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null };
-const CATS_ING = ['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'];
+const modoIng = () => sag.view === 'inv' ? 'inversion' : 'ingreso';  // la pestaña Resumen gestiona ingresos; Inversión, inversiones
+const CATS_ING = { ingreso:['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'],
+inversion:['Fondo indexado', 'Acciones', 'Criptomonedas', 'Plan de pensiones', 'Depósito', 'Otros'] };
+const TXT_ING = { ingreso:{ add:'+ Añadir ingreso', nuevo:'Añadir ingreso', editar:'Editar ingreso', lista:'Ingresos del periodo', vacio:'Aún no hay ingresos. Pulsa «+ Añadir ingreso».', ph:'Nómina de noviembre', cat:'Nómina' },
+inversion:{ add:'+ Añadir inversión', nuevo:'Añadir inversión', editar:'Editar inversión', lista:'Inversiones del periodo', vacio:'Aún no hay inversiones. Pulsa «+ Añadir inversión».', ph:'Aportación mensual', cat:'Fondo indexado' } };
 async function rpc(fn, args) {
 const r = await fetch(SB.url + '/rest/v1/rpc/' + fn, { method:'POST', headers:{ apikey:SB.key, 'Content-Type':'application/json' }, body:JSON.stringify(args || {}) });
 const j = await r.json().catch(() => null);
@@ -516,7 +528,7 @@ return j;
 }
 async function ingListar() {
 const rows = await rpc('ingresos_listar', { p_codigo:ing.code });
-ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona }));
+ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso' }));
 }
 function ingCodigoMal() {
 ing.code = ''; LSset('ingCode', null); ing.estado = 'codigo'; ing.hayCodigo = true; ing.msg = 'Código incorrecto.';
@@ -529,7 +541,7 @@ if (!ing.code) { ing.hayCodigo = !!(await rpc('ingresos_estado')); ing.estado = 
 else { await ingListar(); ing.estado = 'ok'; }
 } catch (e) {
 if (/acceso denegado/.test(e.message)) ingCodigoMal();
-else { ing.estado = 'error'; ing.msg = 'No se pudieron cargar los ingresos: ' + e.message; }
+else { ing.estado = 'error'; ing.msg = 'No se pudieron cargar los datos: ' + e.message; }
 }
 pintarIng();
 }
@@ -552,71 +564,95 @@ ing.code = c; LSset('ingCode', c); ing.estado = 'idle'; ing.msg = '';
 pintarIng();
 }
 async function cambiarCodigo() {
-const nuevo = (prompt('Nuevo código de acceso a los ingresos (mínimo 8 caracteres).\nEn los demás dispositivos tendrás que introducir el nuevo código.') || '').trim();
+const nuevo = (prompt('Nuevo código de acceso (mínimo 8 caracteres).\nEn los demás dispositivos tendrás que introducir el nuevo código.') || '').trim();
 if (!nuevo) return;
 if (nuevo.length < 8) { ing.msg = 'El código debe tener al menos 8 caracteres.'; pintarIng(); return; }
 try { await rpc('ingresos_cambiar_codigo', { p_codigo:ing.code, p_nuevo:nuevo }); ing.code = nuevo; LSset('ingCode', nuevo); ing.msg = ''; }
 catch (e) { if (/acceso denegado/.test(e.message)) ingCodigoMal(); else ing.msg = 'No se pudo cambiar el código: ' + e.message; }
 pintarIng();
 }
+// Gastos de Sagunto: se suman a los del Tricount principal. Solo cuentan en la vista Total o para la persona con ese mismo nombre.
+function gastosSagunto() {
+const S = DATA.sagunto;
+if (!S || !(state.who === 'Total' || (S.members || []).includes(state.who))) return [];
+return S.transactions.filter(t => t.type === 'NORMAL' && t.total > 0);
+}
 function pintarIng() {
 document.querySelectorAll('#iWho button').forEach(b => b.setAttribute('aria-pressed', b.dataset.p === state.who));
 document.querySelectorAll('#iGran button').forEach(b => b.setAttribute('aria-pressed', b.dataset.g === ing.gran));
 $('iMsg').textContent = ing.msg; $('iMsg').classList.toggle('hidden', !ing.msg);
+const m = modoIng(), res = m === 'ingreso', X = TXT_ING[m];
 const yr = ing.gran === 'y', hm = hoyStr().slice(0, 7), cy = hm.slice(0, 4);
-$('iAdd').disabled = ing.estado !== 'ok';
+$('iAdd').disabled = ing.estado !== 'ok'; $('iAdd').textContent = X.add;
 $('iChange').classList.toggle('hidden', ing.estado !== 'ok');
+$('iListT').textContent = X.lista;
 if (ing.estado === 'idle') { ingCargar(); return; }
 if (ing.estado !== 'ok') {
-$('iRows').innerHTML = ing.estado === 'cargando' ? '<div class="empty">Cargando ingresos…</div>'
+$('iRows').innerHTML = ing.estado === 'cargando' ? '<div class="empty">Cargando…</div>'
 : ing.estado === 'codigo' ? `<form id="iCodeForm" class="empty" style="display:flex;flex-direction:column;gap:10px;max-width:340px;margin:0 auto;text-align:left">
-<div>${ing.hayCodigo ? 'Introduce el código de acceso a los ingresos.' : 'Crea un código de acceso para los ingresos (mínimo 8 caracteres). Es independiente de la contraseña del dashboard.'}</div>
+<div>${ing.hayCodigo ? 'Introduce el código de acceso.' : 'Crea un código de acceso para los ingresos y las inversiones (mínimo 8 caracteres). Es independiente de la contraseña del dashboard.'}</div>
 <input id="iCode" type="password" autocomplete="off" placeholder="Código de acceso" required style="font:inherit;font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink)">
 <button class="btn sm" id="iCodeBtn2" type="submit">${ing.hayCodigo ? 'Entrar' : 'Crear código'}</button></form>`
 : '<div class="empty"><button class="btn2" id="iRetry" type="button">Reintentar</button></div>';
-$('iList').innerHTML = ''; $('iHero').textContent = '—'; $('iLabel').textContent = 'Ingresos';
-['iT1', 'iT2', 'iT3'].forEach(i => $(i).textContent = '—'); $('iDetail').textContent = ''; $('iTitle').textContent = '';
+$('iList').innerHTML = ''; $('iHero').textContent = '—'; $('iLabel').textContent = res ? 'Resumen' : 'Inversión';
+['iT1', 'iT2', 'iT3', 'iT4'].forEach(i => { $(i).textContent = '—'; $(i + 'L').textContent = ''; }); $('iDetail').textContent = ''; $('iTitle').textContent = '';
 return;
 }
-const its = ing.items.filter(t => state.who === 'Total' || t.p === state.who);
+const quien = t => state.who === 'Total' || t.p === state.who;
+const its = ing.items.filter(t => t.tipo === m && quien(t));   // lo que se gestiona en esta pestaña
+const invs = res ? ing.items.filter(t => t.tipo === 'inversion' && quien(t)) : [];
 const kf = d => yr ? d.slice(0, 4) : d.slice(0, 7);
-const by = {}, gby = {};
-its.forEach(t => by[kf(t.d)] = (by[kf(t.d)] || 0) + t.amount);
-GASTOS.filter(t => importe(t) > 0).forEach(t => gby[kf(t.d)] = (gby[kf(t.d)] || 0) + importe(t));
-const first = its.length ? its.map(t => kf(t.d)).sort()[0] : kf(hm), lastK = its.length ? its.map(t => kf(t.d)).sort().pop() : kf(hm);
+const suma = (arr, f) => { const o = {}; arr.forEach(t => o[kf(t.d)] = (o[kf(t.d)] || 0) + f(t)); return o; };
+const by = suma(its, t => t.amount), iby = suma(invs, t => t.amount);
+const gby = res ? suma([...GASTOS.filter(t => importe(t) > 0).map(t => ({ d:t.d, a:importe(t) })), ...gastosSagunto().map(t => ({ d:t.d, a:t.total }))], t => t.a) : {};
+const kk = [...its, ...invs].map(t => kf(t.d)).sort();
+const first = kk.length ? kk[0] : kf(hm), lastK = kk.length ? kk[kk.length - 1] : kf(hm);
 const end = lastK > kf(hm) ? lastK : kf(hm);
 const keys = [];
-if (yr) { for (let y = +first; y <= +end; y++) keys.push(String(y)); } else { for (let m = first; m <= end; m = shiftMonth(m, 1)) keys.push(m); }
-const vals = keys.map(k => by[k] || 0), line = keys.map(k => gby[k] || 0);
+if (yr) { for (let y = +first; y <= +end; y++) keys.push(String(y)); } else { for (let mm = first; mm <= end; mm = shiftMonth(mm, 1)) keys.push(mm); }
+const vals = keys.map(k => by[k] || 0), gas = keys.map(k => gby[k] || 0), inv = keys.map(k => iby[k] || 0);
 let i = keys.indexOf(ing.selKey); if (i < 0) i = keys.length - 1;
 ing.selKey = keys[i];
 const lbl = yr ? keys[i] : monthLabel(keys[i]);
-const total = vals[i], gastos = line[i], bal = total - gastos;
+const total = vals[i];
 const nIng = its.filter(t => kf(t.d) === keys[i]);
-$('iLabel').textContent = 'Ingresos · ' + lbl + (state.who === 'Total' ? ' · grupo' : ' · ' + state.who);
-$('iHero').textContent = eur.format(total);
-$('iT1').textContent = eur0.format(gastos);
-$('iT2').textContent = (bal > 0 ? '+' : '') + eur0.format(bal); $('iT2').className = 'v num ' + (bal >= 0 ? 'pos' : 'neg');
 const sumAll = vals.reduce((s, v) => s + v, 0);
-$('iT3L').textContent = yr ? 'Media anual' : 'Media mensual'; $('iT3').textContent = eur0.format(keys.length ? sumAll / keys.length : 0);
-$('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span><span class="legend"><span><i style="border-top:2.5px solid var(--good)"></i>ingresos</span><span><i style="border-top:2.5px solid var(--s2)"></i>gastos</span></span>`;
-$('iDetail').innerHTML = its.length ? `<b>${esc(lbl)}</b>: ${nIng.length} ingreso${nIng.length === 1 ? '' : 's'}` : 'Aún no hay ingresos. Pulsa «+ Añadir ingreso».';
+$('iLabel').textContent = (res ? 'Ingresos' : 'Inversión') + ' · ' + lbl + (state.who === 'Total' ? ' · grupo' : ' · ' + state.who);
+$('iHero').textContent = eur.format(total); $('iHero').style.color = res ? 'var(--good)' : 'var(--s1)';
+const tile = (n, l, v, cls) => { $('iT' + n + 'L').textContent = l; $('iT' + n).textContent = v; $('iT' + n).className = 'v num ' + (cls || ''); };
+const sagTxt = DATA.sagunto && gastosSagunto().length ? ' (incl. Sagunto)' : '';
+if (res) {
+const bal = total - gas[i] - inv[i];
+tile(1, 'Gastos' + sagTxt, eur0.format(gas[i]));
+tile(2, 'Inversión', eur0.format(inv[i]));
+tile(3, 'Balance', (bal > 0 ? '+' : '') + eur0.format(bal), bal >= 0 ? 'pos' : 'neg');
+tile(4, yr ? 'Media anual' : 'Media mensual', eur0.format(keys.length ? sumAll / keys.length : 0));
+} else {
+tile(1, 'Acumulado', eur0.format(sumAll));
+tile(2, yr ? 'Media anual' : 'Media mensual', eur0.format(keys.length ? sumAll / keys.length : 0));
+tile(3, 'Máximo', eur0.format(Math.max(0, ...vals)));
+tile(4, 'Movimientos', its.length);
+}
+$('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span><span class="legend"><span><i style="border-top:2.5px solid ${res ? 'var(--good)' : 'var(--s1)'}"></i>${res ? 'ingresos' : 'inversión'}</span>`
++ (res ? `<span><i style="border-top:2.5px solid var(--s2)"></i>gastos${sagTxt}</span><span><i style="border-top:2.5px solid var(--s1)"></i>inversión</span>` : '') + '</span>';
+$('iDetail').innerHTML = its.length ? `<b>${esc(lbl)}</b>: ${nIng.length} ${res ? 'ingreso' : 'aportación'}${nIng.length === 1 ? '' : (res ? 's' : 'es')}` : X.vacio;
 $('iCount').textContent = nIng.length ? nIng.length + ' mov.' : '';
-ing.ctx = { keys, vals, yr, cy, hm, color:'var(--good)', line, i };
+ing.ctx = { keys, vals, yr, cy, hm, color:res ? 'var(--good)' : 'var(--s1)', lines:res ? [{ vals:gas, color:'var(--s2)' }, { vals:inv, color:'var(--s1)' }] : [], i };
 dibujarBarras($('iRows'), ing.ctx, i, ing.fresh); ing.fresh = false;
-$('iList').innerHTML = [...nIng].sort((a, b) => b.d.localeCompare(a.d)).map(t => `<div class="row" data-id="${esc(t.id)}"><div><div class="d">${esc(t.desc || t.cat || 'Ingreso')}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' })}</b> · ${esc(t.cat || 'Sin categoría')} · ${esc(t.p)}</div></div><div class="m num pos">${eur.format(t.amount)}</div></div>`).join('') || '<div class="empty">Sin ingresos en este periodo</div>';
+$('iList').innerHTML = [...nIng].sort((a, b) => b.d.localeCompare(a.d)).map(t => `<div class="row" data-id="${esc(t.id)}"><div><div class="d">${esc(t.desc || t.cat || (res ? 'Ingreso' : 'Inversión'))}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' })}</b> · ${esc(t.cat || 'Sin categoría')} · ${esc(t.p)}</div></div><div class="m num ${res ? 'pos' : ''}">${eur.format(t.amount)}</div></div>`).join('') || `<div class="empty">Sin ${res ? 'ingresos' : 'inversiones'} en este periodo</div>`;
 }
 function abrirIng(id) {
-const t = id ? ing.items.find(x => x.id === id) : null;
-ing.editId = t ? t.id : null;
-$('iDlgT').textContent = t ? 'Editar ingreso' : 'Añadir ingreso';
+const t = id ? ing.items.find(x => x.id === id) : null, m = t ? t.tipo : modoIng(), X = TXT_ING[m];
+ing.editId = t ? t.id : null; ing.editTipo = m;
+$('iDlgT').textContent = t ? X.editar : X.nuevo;
 $('fFecha').value = t ? t.d : hoyStr();
 $('fDesc').value = t ? t.desc : '';
+$('fDesc').placeholder = X.ph; $('fCat').placeholder = X.cat;
 $('fImp').value = t ? t.amount : '';
 $('fCat').value = t ? t.cat : '';
-$('fWho').innerHTML = DATA.members.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+$('fWho').innerHTML = DATA.members.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
 $('fWho').value = t ? t.p : (DATA.members.includes(state.who) ? state.who : DATA.members[0]);
-$('iCats').innerHTML = [...new Set([...CATS_ING, ...ing.items.map(x => x.cat).filter(Boolean)])].map(c => `<option value="${esc(c)}">`).join('');
+$('iCats').innerHTML = [...new Set([...CATS_ING[m], ...ing.items.filter(x => x.tipo === m).map(x => x.cat).filter(Boolean)])].map(c => `<option value="${esc(c)}">`).join('');
 $('fDel').classList.toggle('hidden', !t);
 $('fErr').textContent = '';
 $('iDlg').showModal();
@@ -625,22 +661,22 @@ async function guardarIng(e) {
 e.preventDefault();
 const amount = Math.round(parseFloat($('fImp').value) * 100) / 100, d = $('fFecha').value;
 if (!d || !(amount > 0)) { $('fErr').textContent = 'Indica una fecha y un importe mayor que 0.'; return; }
-const it = { id:ing.editId || crypto.randomUUID(), d, desc:$('fDesc').value.trim(), amount, cat:$('fCat').value.trim(), p:$('fWho').value };
+const it = { id:ing.editId || crypto.randomUUID(), d, desc:$('fDesc').value.trim(), amount, cat:$('fCat').value.trim(), p:$('fWho').value, tipo:ing.editTipo || modoIng() };
 $('fSave').disabled = true;
-const ok = await ingOp(() => rpc('ingresos_guardar', { p_codigo:ing.code, p_id:it.id, p_fecha:it.d, p_concepto:it.desc, p_importe:it.amount, p_categoria:it.cat, p_persona:it.p }));
+const ok = await ingOp(() => rpc('ingresos_guardar', { p_codigo:ing.code, p_id:it.id, p_fecha:it.d, p_concepto:it.desc, p_importe:it.amount, p_categoria:it.cat, p_persona:it.p, p_tipo:it.tipo }));
 $('fSave').disabled = false;
 if (ok) { ing.selKey = (ing.gran === 'y' ? d.slice(0, 4) : d.slice(0, 7)); pintarIng(); $('iDlg').close(); }
 else if (ing.estado !== 'ok') $('iDlg').close(); else $('fErr').textContent = ing.msg;
 }
 async function borrarIng() {
-if (!ing.editId || !confirm('¿Eliminar este ingreso? No se puede deshacer.')) return;
+if (!ing.editId || !confirm('¿Eliminar este movimiento? No se puede deshacer.')) return;
 $('fDel').disabled = true;
 const ok = await ingOp(() => rpc('ingresos_borrar', { p_codigo:ing.code, p_id:ing.editId }));
 $('fDel').disabled = false;
 if (ok || ing.estado !== 'ok') $('iDlg').close(); else $('fErr').textContent = ing.msg;
 }
 function setView() {
-const s = sag.view === 'sagunto' && !!DATA.sagunto, h = sag.view === 'hist', g = sag.view === 'ing';
+const s = sag.view === 'sagunto' && !!DATA.sagunto, h = sag.view === 'hist', g = sag.view === 'ing' || sag.view === 'inv';
 if (!s && !h && !g) sag.view = 'gastos';
 LSset('view', sag.view);
 document.querySelectorAll('#views button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === sag.view));
@@ -649,7 +685,7 @@ document.querySelector('#app > .grid').classList.toggle('hidden', s || h || g);
 $('sag').classList.toggle('hidden', !s);
 $('hist').classList.toggle('hidden', !h);
 $('ing').classList.toggle('hidden', !g);
-if (s) pintarSagunto(); else if (h) pintarHist(); else if (g) { ing.fresh = true; pintarIng(); } else pintarGrafico();
+if (s) pintarSagunto(); else if (h) pintarHist(); else if (g) { ing.fresh = true; ing.selKey = null; pintarIng(); } else pintarGrafico();
 }
 function pintarSagunto() {
 const hm = hoyStr().slice(0, 7), tot = sag.period === 'total', m = sag.month, esActual = m === hm;
@@ -877,7 +913,7 @@ $('iList').addEventListener('click', e => { const r = e.target.closest('[data-id
 $('iForm').addEventListener('submit', guardarIng);
 $('fCancel').onclick = () => $('iDlg').close();
 $('fDel').onclick = borrarIng;
-let rzi; new ResizeObserver(() => { clearTimeout(rzi); rzi = setTimeout(() => { if (sag.view === 'ing' && ing.estado === 'ok') pintarIng(); }, 80); }).observe($('iRows'));
+let rzi; new ResizeObserver(() => { clearTimeout(rzi); rzi = setTimeout(() => { if ((sag.view === 'ing' || sag.view === 'inv') && ing.estado === 'ok') pintarIng(); }, 80); }).observe($('iRows'));
 $('hClear').onclick = () => { hist.cats.clear(); LSset('hCats', '[]'); pintarHist(); };
 $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTab(b.dataset.t); });
 $('prev').onclick = () => { state.month = months[months.indexOf(state.month) - 1]; pintar(); };
