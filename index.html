@@ -18,14 +18,14 @@
 color-scheme: light;
 --surface:#fcfcfb; --card:#fff; --line:#e6e5e0; --grid:#ecebe6;
 --ink:#0b0b0b; --ink2:#52514e; --ink3:#85847d;
---s1:#2a78d6; --s2:#eb6834; --prev:#8d8c85; --good:#1a7f4b; --bad:#c4402f;
+--s1:#2a78d6; --s2:#eb6834; --s3:#7b4fc9; --prev:#8d8c85; --good:#1a7f4b; --bad:#c4402f;
 }
 @media (prefers-color-scheme: dark) {
 :root {
 color-scheme: dark;
 --surface:#1a1a19; --card:#232322; --line:#34332f; --grid:#2d2c29;
 --ink:#f0efec; --ink2:#c3c2b7; --ink3:#8f8e86;
---s1:#3987e5; --s2:#d95926; --prev:#8f8e86; --good:#4cc28a; --bad:#ef7d6e;
+--s1:#3987e5; --s2:#d95926; --s3:#a483ea; --prev:#8f8e86; --good:#4cc28a; --bad:#ef7d6e;
 }
 }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -114,7 +114,10 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .btn2.danger { color:var(--bad); }
 #ing .top { flex-wrap:wrap; }
 #iSub { flex:1 1 100%; } #iSub button { flex:1; padding:6px 4px; font-size:12.5px; white-space:nowrap; }
-#ing .tiles { grid-template-columns:repeat(4, 1fr); }
+#ing .tiles { grid-template-columns:repeat(auto-fit, minmax(74px, 1fr)); }
+.prev { display:grid; grid-template-columns:minmax(70px, 1.5fr) repeat(3, minmax(0, 1fr)); gap:6px 8px; font-size:12.5px; align-items:start; }
+.prev .h { color:var(--ink3); font-size:11px; } .prev .c { color:var(--ink3); font-size:11.5px; } .prev .r { text-align:right; }
+.prev .tot { border-top:1px solid var(--line); padding-top:6px; }
 #iTitle { align-items:flex-start; } #iTitle > span:first-child { white-space:nowrap; } #iTitle .legend { justify-content:flex-end; }
 #ing .tile .label { font-size:11.5px; }
 #ing .row { cursor:pointer; }
@@ -257,6 +260,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <div class="tile"><div class="label" id="iT2L"></div><div class="v num" id="iT2"></div></div>
 <div class="tile"><div class="label" id="iT3L"></div><div class="v num" id="iT3"></div></div>
 <div class="tile"><div class="label" id="iT4L"></div><div class="v num" id="iT4"></div></div>
+<div class="tile"><div class="label" id="iT5L"></div><div class="v num" id="iT5"></div></div>
 </div>
 </section>
 <section class="card hidden" id="iFondos" style="flex:none;max-height:36%;overflow:auto">
@@ -777,10 +781,17 @@ $('iFondosNota').textContent = fs.length > 1 && !resumen ? 'total ' + eur0.forma
 let cab = '';
 if (resumen && fs.length) {   // resumen de todas las inversiones: totales y desglose por clase
 const tot = fs.reduce((t, f) => t + f.hoy, 0), ap = fs.reduce((t, f) => t + f.aportado, 0), gn = tot - ap;
+// previsión a 5 y 10 años de cada inversión (manteniendo su rentabilidad y sus aportaciones) y del total
+const punto = S => ({ hoy:S.V[S.iHoy], v5:S.V[S.iHoy + 60], b5:S.B[S.iHoy + 60], v10:S.V[S.iHoy + 120], b10:S.B[S.iHoy + 120] });
+const filas = fs.map(f => ({ nombre:f.nombre, r:f.r, ...punto(serieFondos([f], 10)) })), T = punto(serieFondos(fs, 10));
+const celda = (v, b, tot) => `<div class="r${tot ? ' tot' : ''}"><div class="num"><b>${eur0.format(v)}</b></div>${b === null ? '' : `<div class="num ${b >= 0 ? 'pos' : 'neg'}" style="font-size:11px">${b >= 0 ? '+' : ''}${eur0.format(b)}</div>`}</div>`;
+const tabla = `<div class="day" style="margin:10px 0 4px">Previsión · manteniendo la rentabilidad y tus aportaciones</div><div class="prev"><div class="h">Inversión</div><div class="h r">Hoy</div><div class="h r">En 5 años</div><div class="h r">En 10 años</div>`
++ filas.map(f => `<div><div class="d" style="font-size:12.5px">${esc(f.nombre)}</div><div class="c">${pc(f.r * 100)} %/año</div></div>${celda(f.hoy, null)}${celda(f.v5, f.b5)}${celda(f.v10, f.b10)}`).join('')
++ `<div class="tot"><b>Total</b></div>${celda(T.hoy, null, true)}${celda(T.v5, T.b5, true)}${celda(T.v10, T.b10, true)}</div><div class="c" style="margin:4px 0 0;font-size:11.5px;color:var(--ink3)">Bajo cada importe, el beneficio (valor menos lo aportado).</div>`;
 cab = `<div class="tiles" style="margin:0 0 8px;grid-template-columns:repeat(3,1fr)"><div class="tile"><div class="label">Valor hoy</div><div class="v num">${eur0.format(tot)}</div></div><div class="tile"><div class="label">Aportado</div><div class="v num">${eur0.format(ap)}</div></div><div class="tile"><div class="label">Beneficio</div><div class="v num ${gn >= 0 ? 'pos' : 'neg'}">${gn >= 0 ? '+' : ''}${eur0.format(gn)}${ap > 0 ? ' (' + (gn >= 0 ? '+' : '') + pc(gn / ap * 100) + ' %)' : ''}</div></div></div>`
 + [['fondo', 'Fondos'], ['plan', 'Planes de pensiones']].map(([k, n]) => { const g = fs.filter(f => f.clase === k); if (!g.length) return ''; const v = g.reduce((t, f) => t + f.hoy, 0), a2 = g.reduce((t, f) => t + f.aportado, 0);
 return `<div class="row"><div><div class="d">${n} <span class="label">(${g.length})</span></div><div class="c">Aportado ${eur0.format(a2)} · beneficio <span class="${v - a2 >= 0 ? 'pos' : 'neg'}">${v - a2 >= 0 ? '+' : ''}${eur0.format(v - a2)}</span></div></div><div class="m num">${eur.format(v)}</div></div>`; }).join('')
-+ '<div class="day" style="margin:10px 0 2px">Detalle</div>';
++ tabla + '<div class="day" style="margin:10px 0 2px">Detalle</div>';
 }
 const vacio = resumen ? 'Aún no hay fondos ni planes. Añádelos en las pestañas Fondos y Plan de pensiones.'
 : clase === 'plan' ? 'Pulsa «+ Nuevo plan» e indica su nombre, tu aportación inicial y/o cuánto aportas cada mes y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Si no encuentro precios, lo estimo con la rentabilidad que indiques.'
@@ -918,27 +929,27 @@ if (!ing.fondoId || !confirm('¿Eliminar este fondo y sus aportaciones periódic
 const ok = await ingOp(() => rpc('fondos_borrar', { p_codigo:ing.code, p_id:ing.fondoId }));
 if (ok || ing.estado !== 'ok') $('vDlg').close(); else $('vErr').textContent = ing.msg;
 }
-// Gráfica del Resumen: por periodo, una barra de ingresos y otra apilada con la inversión abajo (lo más estable) y los gastos encima; las medias, como líneas.
+// Gráfica del Resumen: por periodo, una barra de ingresos y otra apilada con la inversión abajo (lo más estable), los gastos encima y Sagunto arriba del todo; las medias, como líneas.
 function dibujarResumen(box, c, selIdx, irAlFinal) {
-const { keys, yr, cy, hm, ing:ii, gas, inv, mIng, mGas, mInv } = c, n = keys.length, prevScroll = box.scrollLeft;
+const { keys, yr, cy, hm, ing:ii, gas, sg, inv, mIng, mGas, mSg, mInv } = c, n = keys.length, prevScroll = box.scrollLeft;
 const cw = Math.max(box.clientWidth, 200), H = Math.max(box.clientHeight, 120);
 const step = Math.min(Math.max(yr ? 84 : 64, cw / n), 120), W = Math.max(cw, n * step), T = 18, B = 22, bw = step * 0.34, gap = step * 0.05;
-const cap = c.cap || 0, mx = cap || Math.max(...ii, ...gas.map((v, k) => v + inv[k]), mIng, mGas + mInv, 1) * 1.04;   // con tope, la escala es fija y lo que lo supera se recorta (▲)
+const cap = c.cap || 0, mx = cap || Math.max(...ii, ...gas.map((v, k) => v + inv[k] + sg[k]), mIng, mGas + mInv + mSg, 1) * 1.04;   // con tope, la escala es fija y lo que lo supera se recorta (▲)
 const y = v => T + (1 - Math.min(v, mx) / mx) * (H - T - B);
 const fk = v => v >= 1000 ? (v / 1000).toLocaleString('es-ES', { maximumFractionDigits:1 }) + 'k' : String(Math.round(v));
 let g = [0, .5, 1].map(f => `<line x1="0" x2="${W}" y1="${y(mx * f).toFixed(1)}" y2="${y(mx * f).toFixed(1)}" stroke="var(--grid)"/>` + (f ? `<text x="3" y="${(y(mx * f) - 3).toFixed(1)}" font-size="9.5" fill="var(--ink3)">${fk(mx * f)}</text>` : '')).join('');
 const rect = (x, v0, v1, color, op, sel) => v1 > v0 ? `<rect x="${x.toFixed(1)}" y="${y(v1).toFixed(1)}" width="${bw.toFixed(1)}" height="${(y(v0) - y(v1)).toFixed(1)}" fill="${color}" opacity="${op}" ${sel ? 'stroke="var(--ink)" stroke-width="1.2"' : ''}/>` : '';
 keys.forEach((k, i) => {
-const cur = yr ? k === cy : k === hm, op = cur ? .55 : 1, sel = i === selIdx, x0 = i * step + (step - (2 * bw + gap)) / 2, x1 = x0 + bw + gap, ap = inv[i] + gas[i];
-g += rect(x0, 0, ii[i], 'var(--good)', op, sel) + rect(x1, 0, inv[i], 'var(--s1)', op, sel) + rect(x1, inv[i], ap, 'var(--s2)', op, sel);
+const cur = yr ? k === cy : k === hm, op = cur ? .55 : 1, sel = i === selIdx, x0 = i * step + (step - (2 * bw + gap)) / 2, x1 = x0 + bw + gap, ap = inv[i] + gas[i] + sg[i];
+g += rect(x0, 0, ii[i], 'var(--good)', op, sel) + rect(x1, 0, inv[i], 'var(--s1)', op, sel) + rect(x1, inv[i], inv[i] + gas[i], 'var(--s2)', op, sel) + rect(x1, inv[i] + gas[i], ap, 'var(--s3)', op, sel);
 if (ii[i] > 0) g += `<text x="${(x0 + bw / 2).toFixed(1)}" y="${(y(ii[i]) - 4).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--ink2)">${fk(ii[i]) + (ii[i] > mx ? '▲' : '')}</text>`;
 if (ap > 0) g += `<text x="${(x1 + bw / 2).toFixed(1)}" y="${(y(ap) - 4).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--ink2)">${fk(ap) + (ap > mx ? '▲' : '')}</text>`;
 g += `<text x="${(i * step + step / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10.5" fill="${sel ? 'var(--ink)' : 'var(--ink3)'}" ${sel ? 'font-weight="600"' : ''}>${esc(yr ? k : shortMonth(k))}</text>`;
 g += `<rect data-i="${i}" x="${i * step}" y="0" width="${step}" height="${H}" fill="transparent" style="cursor:pointer"/>`;
 });
-// medias: ingresos, inversión (abajo) y gastos (a la altura de inversión + gastos, como en la barra apilada)
+// medias: ingresos, inversión (abajo), gastos (a la altura de inversión + gastos) y Sagunto (encima de todo), como en la barra apilada
 const media = (v, color) => v > 0 ? `<line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--card)" stroke-width="4" opacity=".75" pointer-events="none"/><line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${color}" stroke-width="1.9" stroke-dasharray="6 4" pointer-events="none"/>` : '';
-g += media(mIng, 'var(--good)') + media(mInv, 'var(--s1)') + media(mInv + mGas, 'var(--s2)');
+g += media(mIng, 'var(--good)') + media(mInv, 'var(--s1)') + media(mInv + mGas, 'var(--s2)') + (mSg > 0 ? media(mInv + mGas + mSg, 'var(--s3)') : '');
 box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Ingresos frente a gastos e inversión por ${yr ? 'año' : 'mes'}">${g}</svg>`;
 box.scrollLeft = irAlFinal ? (cap ? Math.max(0, (selIdx + .5) * step - cw / 2) : box.scrollWidth) : prevScroll;   // con un año a la vista, centrado en el mes elegido
 }
@@ -968,7 +979,7 @@ $('iRows').innerHTML = ing.estado === 'cargando' ? '<div class="empty">Cargando�
 <button class="btn sm" id="iCodeBtn2" type="submit">${ing.hayCodigo ? 'Entrar' : 'Crear código'}</button></form>`
 : '<div class="empty"><button class="btn2" id="iRetry" type="button">Reintentar</button></div>';
 $('iList').innerHTML = ''; $('iHero').textContent = '—'; $('iLabel').textContent = res ? 'Resumen' : 'Inversión';
-['iT1', 'iT2', 'iT3', 'iT4'].forEach(i => { $(i).textContent = '—'; $(i + 'L').textContent = ''; }); $('iDetail').textContent = ''; $('iTitle').textContent = '';
+['iT1', 'iT2', 'iT3', 'iT4', 'iT5'].forEach(i => { $(i).textContent = '—'; $(i + 'L').textContent = ''; }); $('iDetail').textContent = ''; $('iTitle').textContent = '';
 return;
 }
 $('iWho').classList.toggle('hidden', !res);   // las inversiones son siempre de Fan: sin selector de persona
@@ -980,7 +991,8 @@ const invs = res && vistaFan() ? todos.filter(t => t.tipo === 'inversion') : [];
 const kf = d => yr ? d.slice(0, 4) : d.slice(0, 7);
 const suma = (arr, f) => { const o = {}; arr.forEach(t => o[kf(t.d)] = (o[kf(t.d)] || 0) + f(t)); return o; };
 const by = suma(its, t => t.amount), iby = suma(invs, t => t.amount);
-const gby = res ? suma([...GASTOS.filter(t => importe(t) > 0).map(t => ({ d:t.d, a:importe(t) })), ...gastosSagunto().map(t => ({ d:t.d, a:t.total }))], t => t.a) : {};
+const gby = res ? suma(GASTOS.filter(t => importe(t) > 0).map(t => ({ d:t.d, a:importe(t) })), t => t.a) : {};
+const sby = res ? suma(gastosSagunto().map(t => ({ d:t.d, a:t.total })), t => t.a) : {};   // Sagunto va aparte de los gastos
 const kk = [...its, ...invs].map(t => kf(t.d)).sort();
 const first = kk.length ? kk[0] : kf(hm), lastK = kk.length ? kk[kk.length - 1] : kf(hm);
 const end = lastK > kf(hm) ? lastK : kf(hm);
@@ -991,7 +1003,7 @@ if (mesAnio) { $('iYear').classList.remove('hidden'); $('iYearL').textContent = 
 const keys = [];
 if (mesAnio) { for (let mm = 1; mm <= 12; mm++) keys.push(ing.anio + '-' + String(mm).padStart(2, '0')); }
 else if (yr) { for (let y = +first; y <= +end; y++) keys.push(String(y)); } else { for (let mm = first; mm <= end; mm = shiftMonth(mm, 1)) keys.push(mm); }
-const vals = keys.map(k => by[k] || 0), gas = keys.map(k => gby[k] || 0), inv = keys.map(k => iby[k] || 0);
+const vals = keys.map(k => by[k] || 0), gas = keys.map(k => gby[k] || 0), inv = keys.map(k => iby[k] || 0), sgn = keys.map(k => sby[k] || 0);
 let i = keys.indexOf(ing.selKey);
 if (i < 0) { const ok = keys.filter(k => k <= (yr ? cy : hm)); i = ok.length ? keys.indexOf(ok[ok.length - 1]) : keys.length - 1; }
 ing.selKey = keys[i];
@@ -1003,26 +1015,29 @@ const kBase = mesAnio ? keys.filter(k => k <= hm) : keys, promedio = a => kBase.
 $('iLabel').textContent = (res ? 'Ingresos' : 'Inversión') + ' · ' + lbl + (!res ? ' · ' + (miembroFan() || 'Fan') : state.who === 'Total' ? ' · grupo' : ' · ' + state.who);
 $('iHero').textContent = eur.format(total); $('iHero').style.color = res ? 'var(--good)' : 'var(--s1)';
 const tile = (n, l, v, cls) => { $('iT' + n + 'L').textContent = l; $('iT' + n).textContent = v; $('iT' + n).className = 'v num ' + (cls || ''); };
-const sagTxt = DATA.sagunto && gastosSagunto().length ? ' (incl. Sagunto)' : '';
+const hayS = !!DATA.sagunto && vistaFan();
 if (res) {
-const bal = total - gas[i] - inv[i];
-tile(1, 'Gastos' + sagTxt, eur0.format(gas[i]));
-tile(2, 'Inversión', vistaFan() ? eur0.format(inv[i]) : '—');
-tile(3, 'Balance', (bal > 0 ? '+' : '') + eur0.format(bal), bal >= 0 ? 'pos' : 'neg');
-tile(4, yr ? 'Media anual' : 'Media mensual', eur0.format(promedio(vals)));
+const bal = total - gas[i] - sgn[i] - inv[i];
+tile(1, 'Gastos', eur0.format(gas[i]));
+tile(2, 'Sagunto', hayS ? eur0.format(sgn[i]) : '—');
+tile(3, 'Inversión', vistaFan() ? eur0.format(inv[i]) : '—');
+tile(4, 'Balance', (bal > 0 ? '+' : '') + eur0.format(bal), bal >= 0 ? 'pos' : 'neg');
+tile(5, yr ? 'Media anual' : 'Media mensual', eur0.format(promedio(vals)));
 } else {
 tile(1, 'Acumulado', eur0.format(sumAll));
 tile(2, yr ? 'Media anual' : 'Media mensual', eur0.format(keys.length ? sumAll / keys.length : 0));
 tile(3, 'Máximo', eur0.format(Math.max(0, ...vals)));
 tile(4, 'Movimientos', its.length);
 }
+$('iT5').parentElement.classList.toggle('hidden', !res);
 $('iCount').textContent = nIng.length ? nIng.length + ' mov.' : '';
 if (res) {
-const invV = vistaFan() ? inv : inv.map(() => 0), prom = promedio, mIng = prom(vals), mGas = prom(gas), mInv = prom(invV);
-$('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes · ' + ing.anio}</span><span class="legend"><span><i class="sq" style="background:var(--good)"></i>ingresos · media ${eur0.format(mIng)}</span><span><i class="sq" style="background:var(--s2)"></i>gastos${sagTxt} · media ${eur0.format(mGas)}</span>`
+const invV = vistaFan() ? inv : inv.map(() => 0), prom = promedio, mIng = prom(vals), mGas = prom(gas), mInv = prom(invV), sgV = hayS ? sgn : sgn.map(() => 0), mSg = prom(sgV);
+$('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes · ' + ing.anio}</span><span class="legend"><span><i class="sq" style="background:var(--good)"></i>ingresos · media ${eur0.format(mIng)}</span><span><i class="sq" style="background:var(--s2)"></i>gastos · media ${eur0.format(mGas)}</span>`
++ (hayS ? `<span><i class="sq" style="background:var(--s3)"></i>Sagunto · media ${eur0.format(mSg)}</span>` : '')
 + (vistaFan() ? `<span><i class="sq" style="background:var(--s1)"></i>inversión · media ${eur0.format(mInv)}</span>` : '') + '<span style="color:var(--ink3)">- - medias</span></span>';
-$('iDetail').innerHTML = `<b>${esc(lbl)}</b>: ingresos ${eur0.format(vals[i])} · gastos ${eur0.format(gas[i])}` + (vistaFan() ? ` · inversión ${eur0.format(invV[i])}` : '');
-ing.ctx = { keys, yr, cy, hm, ing:vals, gas, inv:invV, mIng, mGas, mInv, i, cap:mesAnio ? TOPE_RESUMEN : 0 };
+$('iDetail').innerHTML = `<b>${esc(lbl)}</b>: ingresos ${eur0.format(vals[i])} · gastos ${eur0.format(gas[i])}` + (hayS ? ` · Sagunto ${eur0.format(sgn[i])}` : '') + (vistaFan() ? ` · inversión ${eur0.format(invV[i])}` : '');
+ing.ctx = { keys, yr, cy, hm, ing:vals, gas, sg:sgV, inv:invV, mIng, mGas, mSg, mInv, i, cap:mesAnio ? TOPE_RESUMEN : 0 };
 dibujarResumen($('iRows'), ing.ctx, i, ing.fresh);
 } else {
 $('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span><span class="legend"><span><i style="border-top:2.5px solid var(--s1)"></i>inversión</span></span>`;
