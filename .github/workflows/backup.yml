@@ -1,0 +1,40 @@
+name: Backup diario
+
+# Una copia al día de los datos exportados (cifrados con DASH_PASSWORD, igual que data.json).
+# GitHub borra cada artefacto a los 30 días, así que siempre quedan los últimos 30 backups.
+on:
+  schedule:
+    - cron: "40 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Descargar y cifrar
+        env:
+          TRICOUNT_KEY: ${{ secrets.TRICOUNT_KEY }}
+          TRICOUNT_KEY_SAGUNTO: ${{ secrets.TRICOUNT_KEY_SAGUNTO }}
+          DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
+        run: |
+          python fetch_tricount.py transactions.json
+          if [ -n "$TRICOUNT_KEY_SAGUNTO" ]; then
+            python fetch_tricount.py sagunto.json --key-env=TRICOUNT_KEY_SAGUNTO
+          fi
+          python build.py transactions.json sagunto.json
+          mkdir backup
+          cp site/data.json "backup/data-$(date -u +%F).json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ github.run_id }}
+          path: backup/
+          retention-days: 30
+          if-no-files-found: error

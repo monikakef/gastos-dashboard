@@ -5,7 +5,7 @@ Uso:
   TRICOUNT_KEY_SAGUNTO=xxxx python fetch_tricount.py sagunto.json --key-env=TRICOUNT_KEY_SAGUNTO
   python fetch_tricount.py out.json --from-file response_data.json   (prueba sin red)
 """
-import json, os, sys, uuid
+import json, os, re, sys, uuid
 from datetime import datetime
 
 CATEGORIAS = {
@@ -15,6 +15,12 @@ CATEGORIAS = {
     "HEALTHCARE": "Salud 🏥", "TRAVEL": "Viajes ✈️", "BALANCE": "Transferencia 💸",
     "INCOME": "Ingresos 💰", "OTHER": "Otros 📦", "UNCATEGORIZED": "Sin categoría ❓",
 }
+
+
+# (patrón sobre la descripción, categoría que se muestra). Añade aquí más reglas si hace falta.
+REGLAS_CATEGORIA = [
+    (re.compile(r"\bIBI\b", re.I), CATEGORIAS["RENT_AND_UTILITIES"]),
+]
 
 
 def descargar(key):
@@ -53,9 +59,14 @@ def parsear(data):
             continue
         cat_std = t.get("category", "")
         cat = t.get("category_custom") or CATEGORIAS.get(cat_std, cat_std)
+        desc = t.get("description", "")
+        for patron, forzada in REGLAS_CATEGORIA:  # reglas propias: mandan sobre la categoría de Tricount
+            if patron.search(desc):
+                cat = forzada
+                break
         movs.append({
             "d": datetime.strptime(t["date"], "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%d"),
-            "desc": t.get("description", ""),
+            "desc": desc,
             "paid": t["membership_owned"]["RegistryMembershipNonUser"]["alias"]["display_name"],
             "total": round(abs(float(t["amount"]["value"])), 2),
             "cur": t["amount"]["currency"],
