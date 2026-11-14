@@ -159,6 +159,12 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 .pane h2 { display:flex; }
 .hero .big { font-size:40px; }
 }
+/* Escritorio: en Resumen la gráfica ocupa casi todo el ancho y la lista de ingresos queda estrecha. */
+@media (min-width:900px) {
+#ing { max-width:1280px; }
+#ing .sagRow .sagChart { flex:3.4; }
+#ing .sagRow .catsCard { flex:1; min-width:240px; max-width:300px; }
+}
 /* Móvil: la página se desplaza; gráficas y listas de movimientos más grandes (las listas con su propio scroll). */
 @media (max-width:899.98px) {
 html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:auto; }
@@ -304,6 +310,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <h3 id="vTitulo" style="margin:0 0 10px;font-size:17px">Nuevo fondo</h3>
 <label>Nombre del fondo<input id="vNombre" type="text" maxlength="40" required placeholder="Mi fondo indexado"></label>
 <label><span id="vIsinT">ISIN, para buscar los precios (opcional)</span><input id="vIsin" type="text" maxlength="12" autocapitalize="characters" placeholder="IE00B03HD191" style="text-transform:uppercase"></label>
+<label id="vRefL" class="hidden"><span>Fondo de referencia (ISIN), para estimar su evolución si no hay precios del plan (opcional)</span><input id="vRef" type="text" maxlength="12" autocapitalize="characters" placeholder="LU1841614867" style="text-transform:uppercase"></label>
 <div class="vSec">Aportación inicial (opcional)</div>
 <label>Importe de la aportación inicial (€)<input type="number" id="vInicial" step="0.01" min="0.01" inputmode="decimal" placeholder="500"></label>
 <label>Fecha de la aportación inicial<input type="date" id="vInicialF"></label>
@@ -616,7 +623,7 @@ return j;
 }
 async function ingListar() {
 const [rows, fon] = await Promise.all([rpc('ingresos_listar', { p_codigo:ing.code }), rpc('fondos_listar', { p_codigo:ing.code })]);
-ing.fondos = fon.map(f => ({ id:f.id, clase:f.clase || 'fondo', nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
+ing.fondos = fon.map(f => ({ id:f.id, clase:f.clase || 'fondo', ref:f.ref_isin || '', nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
 inicial:f.inicial == null ? null : Number(f.inicial), inicialFecha:f.inicial_fecha, baseFecha:f.base_fecha, baseAportado:f.base_aportado == null ? null : Number(f.base_aportado), baseValor:f.base_valor == null ? null : Number(f.base_valor), rent:f.rent_anual == null ? null : Number(f.rent_anual), persona:f.persona }));
 ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso', per:r.periodicidad || 'unica', fin:r.fecha_fin || null, rent:r.rent_anual == null ? null : Number(r.rent_anual), fondoId:r.fondo_id || null }));
 ing.items.forEach(t => { if (t.fondoId) { t.extra = true; const f = ing.fondos.find(x => x.id === t.fondoId); if (f) t.cat = f.nombre; } });  // aportaciones extraordinarias de un fondo
@@ -719,11 +726,13 @@ function aportesFondos(hasta) {
 const iniciales = ing.fondos.filter(f => f.inicial && f.inicialFecha && f.inicialFecha <= hasta).map(f => ({ id:f.id, fondoId:f.id, tipo:'inversion', d:f.inicialFecha, amount:f.inicial, per:'unica', inicial:true, cat:f.nombre, desc:f.nombre, p:f.persona || miembroFan() || 'Fan' }));
 return [...iniciales, ...ing.fondos.filter(f => f.aporte && f.desde).flatMap(f => ocurrencias({ id:f.id, fondoId:f.id, tipo:'inversion', d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta, cat:f.nombre, desc:f.nombre, p:f.persona || miembroFan() || 'Fan' }, hasta))];
 }
+const isinEfectivo = f => { const a = (f.isin || '').toUpperCase(), b = (f.ref || '').toUpperCase(); return ISIN_RE.test(a) ? a : ISIN_RE.test(b) ? b : ''; };   // el propio o, si no hay, el de referencia
+const INI_GRAFICA = '2025-01-01';   // las gráficas de fondos y planes empiezan aquí
 const claseSub = () => ing.sub === 'planes' ? 'plan' : ing.sub === 'fondos' ? 'fondo' : null;   // 'resumen': todas las inversiones
 function modeloFondos(anios, clase) {
 const hoy = hoyStr(), tope = sumarMeses(hoy, anios * 12);
 return ing.fondos.filter(f => !clase || f.clase === clase).map(f => {
-const codigo = f.isin || '', isin = ISIN_RE.test(codigo.toUpperCase()) ? codigo.toUpperCase() : '', px = isin && precios[isin] && precios[isin].estado === 'ok' ? precios[isin] : null;
+const codigo = f.isin || '', isin = isinEfectivo(f), viaRef = !!isin && isin !== codigo.toUpperCase(), px = isin && precios[isin] && precios[isin].estado === 'ok' ? precios[isin] : null;
 const plan = f.aporte && f.desde ? ocurrencias({ d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta }, tope) : [];
 const ex = ing.items.filter(t => t.tipo === 'inversion' && t.fondoId === f.id).map(t => ({ d:t.d, amount:t.amount }));   // extraordinarias de este fondo
 const anclado = f.baseValor != null && !!f.baseFecha;
@@ -731,9 +740,10 @@ const puntuales = [...(f.inicial && f.inicialFecha ? [{ d:f.inicialFecha, amount
 const primera = [f.desde, ...puntuales.map(t => t.d)].filter(Boolean).sort()[0];
 const d0 = anclado ? f.baseFecha : sumarDias(primera || hoy, -1), v0 = anclado ? f.baseValor : 0;
 const aport0 = !anclado ? 0 : f.baseAportado != null ? f.baseAportado : [...plan, ...puntuales].filter(t => t.d <= d0).reduce((s, t) => s + t.amount, 0);
-const F = { id:f.id, clase:f.clase, nombre:f.nombre, isin, codigo, f, d0, v0, aport0, anclado, rManual:(f.rent || 0) / 100, rOver:f.rent == null ? null : f.rent / 100, px,
+const F = { id:f.id, clase:f.clase, nombre:f.nombre, isin, codigo, viaRef, f, d0, v0, aport0, anclado, rManual:(f.rent || 0) / 100, rOver:f.rent == null ? null : f.rent / 100, px,
 pxEstado:isin ? (precios[isin] ? precios[isin].estado : 'pendiente') : 'sin', pxMsg:isin && precios[isin] ? precios[isin].msg : '',
-ap:[...plan, ...puntuales].filter(t => t.d > d0).map(t => ({ d:t.d, a:t.amount })).sort((a, b) => a.d < b.d ? -1 : 1), extras:ex };
+ap:[...plan, ...puntuales].filter(t => t.d > d0).map(t => ({ d:t.d, a:t.amount })).sort((a, b) => a.d < b.d ? -1 : 1), extras:ex,
+antes:[...plan, ...puntuales].filter(t => t.d <= d0).map(t => ({ d:t.d, a:t.amount })) };   // aportaciones conocidas hasta la fecha de partida
 if (px) {
 const s = px.serie, last = s[s.length - 1], lim = sumarMeses(last[0], -60);
 let i0 = 0; while (i0 < s.length - 1 && s[i0][0] < lim) i0++;
@@ -742,10 +752,16 @@ F.u0 = v0 > 0 ? v0 / navEn(s, d0) : 0; F.navHoy = last[1]; F.fechaNav = last[0];
 F.rMedia = dd >= 90 ? Math.pow(last[1] / s[i0][1], 365 / dd) - 1 : 0; F.anios = dd / 365;
 }
 F.r = F.rOver != null ? F.rOver : (px ? F.rMedia : F.rManual);
-F.rFuente = F.rOver != null ? 'supuesta por ti' : px ? 'media de los últimos ' + Math.min(5, F.anios).toLocaleString('es-ES', { maximumFractionDigits:1 }) + ' años' : F.rManual ? 'supuesta por ti' : 'sin crecimiento';
-F.cont = d => d < F.d0 ? 0 : F.aport0 + F.ap.filter(x => x.d <= d).reduce((s, x) => s + x.a, 0);   // aportado: lo ya aportado + aportaciones posteriores
+F.rFuente = F.rOver != null ? 'supuesta por ti' : px ? (viaRef ? 'media del fondo de referencia, últimos ' : 'media de los últimos ') + Math.min(5, F.anios).toLocaleString('es-ES', { maximumFractionDigits:1 }) + ' años' : F.rManual ? 'supuesta por ti' : 'sin crecimiento';
+F.cont = d => d < F.d0 ? (anclado ? Math.max(0, F.aport0 - F.antes.filter(x => x.d > d).reduce((t, x) => t + x.a, 0)) : 0) : F.aport0 + F.ap.filter(x => x.d <= d).reduce((t, x) => t + x.a, 0);   // aportado: lo ya aportado + aportaciones posteriores
 F.valor = d => {
-if (d < F.d0) return 0;
+if (d < F.d0) {   // antes de la fecha de partida: se quitan las aportaciones posteriores a d y se deshace el crecimiento
+if (!anclado) return 0;
+const post = F.antes.filter(x => x.d > d);
+if (px) return Math.max(0, F.u0 - post.reduce((t, x) => t + x.a / navEn(px.serie, x.d), 0)) * navEn(px.serie, d);
+const fc = n => Math.pow(1 + F.rManual, n / 365);
+return Math.max(0, (F.v0 - post.reduce((t, x) => t + x.a * fc(diasEntre(x.d, F.d0)), 0)) / fc(diasEntre(d, F.d0)));
+}
 const hasta = F.ap.filter(x => x.d <= d);
 if (px) return (F.u0 + hasta.reduce((s, x) => s + x.a / navEn(px.serie, x.d), 0)) * navEn(px.serie, d);
 return F.v0 * Math.pow(1 + F.rManual, diasEntre(F.d0, d) / 365) + hasta.reduce((s, x) => s + x.a * Math.pow(1 + F.rManual, diasEntre(x.d, d) / 365), 0);
@@ -755,7 +771,7 @@ return F;
 }).sort((a, b) => b.hoy - a.hoy);
 }
 function serieFondos(fs, anios) {  // rejilla mensual: histórico real hasta hoy y proyección después
-const hoy = hoyStr(), ini = fs.reduce((m, f) => f.d0 < m ? f.d0 : m, hoy), G = [];
+const hoy = hoyStr(), ini = INI_GRAFICA < hoy ? INI_GRAFICA : fs.reduce((m, f) => f.d0 < m ? f.d0 : m, hoy), G = [];
 for (let k = 0; ; k++) { const d = sumarMeses(ini, k); if (d >= hoy) break; G.push(d); }
 const iHoy = G.length; G.push(hoy);
 for (let k = 1; k <= anios * 12; k++) G.push(sumarMeses(hoy, k));
@@ -772,7 +788,7 @@ v = v * g + aps; c += aps; V[i] += v; C[i] += c;
 return { G, iHoy, V, C, B:V.map((v, i) => v - C[i]) };
 }
 function pintarFondos() {
-ing.fondos.forEach(f => { if (ISIN_RE.test((f.isin || '').toUpperCase())) cargarPrecios(f.isin.toUpperCase()); });   // los planes con código DGS no tienen precios online
+ing.fondos.forEach(f => { const e = isinEfectivo(f); if (e) cargarPrecios(e); });   // los planes con código DGS no tienen precios online: solo se buscan si hay un ISIN propio o de referencia
 const clase = claseSub(), fs = modeloFondos(+ing.horizonte, clase), resumen = ing.sub === 'resumen';
 const corta = d => new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' });
 const pc = x => x.toLocaleString('es-ES', { maximumFractionDigits:1 });
@@ -797,7 +813,8 @@ const vacio = resumen ? 'Aún no hay fondos ni planes. Añádelos en las pestañ
 : clase === 'plan' ? 'Pulsa «+ Nuevo plan» e indica su nombre y, si quieres, su código (el de la DGS, no un ISIN), tu aportación inicial y/o cuánto aportas cada mes y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Si no encuentro precios, lo estimo con la rentabilidad que indiques.'
 : 'Pulsa «+ Nuevo fondo» e indica su ISIN, tu aportación inicial y/o cuánto aportas cada mes (la periódica es opcional) y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Busco los precios, estimo su valor de hoy y proyecto su evolución.';
 $('iFondosL').innerHTML = cab + (fs.length ? fs.map(f => {
-const precio = !f.codigo ? (f.clase === 'plan' ? 'sin código: estimación con la rentabilidad indicada' : 'sin ISIN: estimación manual') : !f.isin ? 'código no ISIN: sin precios online, estimación con la rentabilidad indicada' : f.px ? `VL ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:2 })} € (${corta(f.fechaNav)})`
+const sinPrecios = (f.codigo ? 'código no ISIN: sin precios online' : f.clase === 'plan' ? 'sin código' : 'sin ISIN') + (f.r ? ' · estimación con la rentabilidad indicada' : ' · sin crecimiento: indica una rentabilidad anual' + (f.clase === 'plan' ? ' o un fondo de referencia' : '') + ' (Editar)');
+const precio = !f.isin ? sinPrecios : f.px ? `${f.viaRef ? 'Siguiendo el fondo ' + esc(f.isin) + ' · ' : ''}VL ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:2 })} € (${corta(f.fechaNav)})`
 : f.pxEstado === 'error' ? `sin precios (${esc(f.pxMsg || 'error')}) · <a href="#" data-retry="${esc(f.isin)}" style="color:var(--s1)">reintentar</a>` : 'buscando precios…';
 const pct = f.aportado > 0 ? ' (' + (f.gan >= 0 ? '+' : '') + pc(f.gan / f.aportado * 100) + ' %)' : '';
 const plan = f.f.aporte ? `Aportas ${eur0.format(f.f.aporte)} ${NOMBRE_PER[f.f.per]} desde ${corta(f.f.desde)}${f.f.hasta ? ' hasta ' + corta(f.f.hasta) : ''}` : 'sin aportación periódica';
@@ -889,6 +906,7 @@ ing.fondoId = f ? f.id : null; ing.fondoClase = f ? f.clase : (clase || 'fondo')
 const plan = ing.fondoClase === 'plan';
 $('vTitulo').textContent = (f ? 'Editar ' : 'Nuevo ') + (plan ? 'plan de pensiones' : 'fondo');
 $('vNombre').value = f ? f.nombre : ''; $('vIsin').value = f ? f.isin : '';
+$('vRef').value = f ? f.ref : ''; $('vRefL').classList.toggle('hidden', !plan);
 $('vIsinT').textContent = plan ? 'Código del plan, p. ej. el de la DGS (opcional)' : 'ISIN, para buscar los precios (opcional)'; $('vIsin').placeholder = plan ? 'N1234' : 'IE00B03HD191'; $('vIsin').maxLength = plan ? 20 : 12;
 $('vInicial').value = f && f.inicial ? f.inicial : ''; $('vInicialF').value = f && f.inicialFecha ? f.inicialFecha : '';
 $('vAporte').value = f && f.aporte ? f.aporte : ''; $('vPer').value = f ? f.per : 'mensual';
@@ -897,7 +915,7 @@ $('vAportado').value = f && f.baseAportado != null ? f.baseAportado : ''; $('vVa
 $('vFecha').value = f && f.baseFecha ? f.baseFecha : hoyStr();
 $('vRent').value = f && f.rent != null ? f.rent : '';
 $('vDel').classList.toggle('hidden', !f);
-$('vNota').textContent = (f ? 'Para actualizar el valor: pon la fecha de hoy, lo aportado hasta hoy y lo que vale ahora. ' : '') + (plan ? 'Los planes de pensiones no usan ISIN sino otro código (el de la DGS, como N1234) y no tienen precios online: lo estimo con la rentabilidad que indiques abajo. Si tu plan sí tiene ISIN, ponlo y buscaré sus precios.' : '');
+$('vNota').textContent = (f ? 'Para actualizar el valor: pon la fecha de hoy, lo aportado hasta hoy y lo que vale ahora. ' : '') + (plan ? 'Los planes de pensiones no usan ISIN sino otro código (el de la DGS, como N1234) y no tienen precios online: lo estimo con la rentabilidad que indiques abajo. Si tu plan sí tiene ISIN, ponlo y buscaré sus precios. Si no tiene precios, puedes indicar un fondo de referencia parecido (su ISIN) y lo estimaré con la evolución de ese fondo.' : '');
 $('vErr').textContent = '';
 $('vDlg').showModal();
 }
@@ -906,12 +924,14 @@ e.preventDefault();
 const num = id => $(id).value === '' ? null : Math.round(parseFloat($(id).value) * 100) / 100;
 const nombre = $('vNombre').value.trim(), isin = $('vIsin').value.trim().toUpperCase(), aporte = num('vAporte'), desde = $('vDesde').value || null, hasta = $('vHasta').value || null;
 const valor = num('vValor'), aportado = num('vAportado'), fecha = $('vFecha').value || null, rent = num('vRent'), inicial = num('vInicial'), inicialF = $('vInicialF').value || null;
+const ref = ing.fondoClase === 'plan' ? $('vRef').value.trim().toUpperCase() : '';
 const err = m => { $('vErr').textContent = m; };
 if (!nombre) return err('Pon un nombre.');
 if (isin && ing.fondoClase !== 'plan' && !ISIN_RE.test(isin)) return err('El ISIN debe tener 12 caracteres (por ejemplo, IE00B03HD191).');
 if (isin && ing.fondoClase === 'plan' && !/^[A-Z0-9._-]{2,20}$/.test(isin)) return err('El código del plan solo puede llevar letras, números y . _ - (entre 2 y 20 caracteres).');
 if (inicial !== null && !(inicial > 0)) return err('La aportación inicial debe ser mayor que 0.');
 if (inicial !== null && !inicialF) return err('Indica la fecha de la aportación inicial.');
+if (ref && !ISIN_RE.test(ref)) return err('El ISIN del fondo de referencia debe tener 12 caracteres (por ejemplo, LU1841614867).');
 if (aporte !== null && !(aporte > 0)) return err('La aportación debe ser mayor que 0.');
 if (aporte !== null && !desde) return err('Indica la fecha de la primera aportación.');
 if (hasta && desde && hasta < desde) return err('La fecha final no puede ser anterior al inicio.');
@@ -922,9 +942,9 @@ if (aporte === null && valor === null && inicial === null) return err('Indica un
 if (rent !== null && (rent < -100 || rent > 100)) return err('La rentabilidad debe estar entre -100 y 100.');
 $('vSave').disabled = true;
 const ok = await ingOp(() => rpc('fondos_guardar', { p_codigo:ing.code, p_id:ing.fondoId || crypto.randomUUID(), p_nombre:nombre, p_isin:isin, p_aporte:aporte, p_periodicidad:$('vPer').value, p_aporte_desde:aporte === null ? null : desde, p_aporte_hasta:aporte === null ? null : hasta,
-p_base_fecha:valor === null ? null : fecha, p_base_aportado:valor === null ? null : aportado, p_base_valor:valor, p_rent_anual:rent, p_persona:miembroFan() || 'Fan', p_inicial:inicial, p_inicial_fecha:inicial === null ? null : inicialF, p_clase:ing.fondoClase || 'fondo' }));
+p_base_fecha:valor === null ? null : fecha, p_base_aportado:valor === null ? null : aportado, p_base_valor:valor, p_rent_anual:rent, p_persona:miembroFan() || 'Fan', p_inicial:inicial, p_inicial_fecha:inicial === null ? null : inicialF, p_clase:ing.fondoClase || 'fondo', p_ref_isin:ref }));
 $('vSave').disabled = false;
-if (ok || ing.estado !== 'ok') { $('vDlg').close(); if (ok && ISIN_RE.test(isin)) cargarPrecios(isin, true); } else $('vErr').textContent = ing.msg;
+if (ok || ing.estado !== 'ok') { $('vDlg').close(); const ef = ISIN_RE.test(isin) ? isin : ISIN_RE.test(ref) ? ref : ''; if (ok && ef) cargarPrecios(ef, true); } else $('vErr').textContent = ing.msg;
 }
 async function borrarFondo() {
 if (!ing.fondoId || !confirm('¿Eliminar este fondo y sus aportaciones periódicas? No se puede deshacer.')) return;
