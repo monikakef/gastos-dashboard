@@ -155,6 +155,25 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 .pane h2 { display:flex; }
 .hero .big { font-size:40px; }
 }
+/* Móvil: la página se desplaza; gráficas y listas de movimientos más grandes (las listas con su propio scroll). */
+@media (max-width:899.98px) {
+html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:auto; }
+#app { height:auto; min-height:100dvh; }
+.grid { flex:none; grid-template-rows:auto; }
+.chart { height:400px; }
+.lower { height:560px; }
+.scroll { overscroll-behavior:auto; }
+.sag { flex:none; }
+.sag .catsCard { flex:none; }
+.sagRow { flex:none; }
+.sagRow .sagChart { flex:none; height:420px; }
+.sagRow .catsCard { flex:none; height:520px; }
+.hbody { flex:none; }
+.hbody .hscroll { flex:none; height:360px; }
+.hside { flex:none; height:480px; min-height:0; }
+#iFondos { max-height:none !important; }
+#iProy { flex:none !important; height:460px; min-height:0 !important; }
+}
 </style>
 </head>
 <body>
@@ -219,6 +238,7 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <section class="sag hidden" id="ing">
 <div class="top">
 <div class="seg" id="iWho" role="group" aria-label="Persona"></div>
+<div class="month hidden" id="iYear"><button id="iPrevY" type="button" aria-label="Año anterior">‹</button><strong id="iYearL" style="min-width:56px"></strong><button id="iNextY" type="button" aria-label="Año siguiente">›</button></div>
 <div class="seg hidden" id="iSub" role="group" aria-label="Vista de inversión"><button data-s="aport" aria-pressed="true">Aportaciones</button><button data-s="fondos" aria-pressed="false">Fondos</button></div>
 <div class="seg" id="iGran" role="group" aria-label="Agrupar por">
 <button data-g="m" aria-pressed="true">Meses</button>
@@ -576,7 +596,8 @@ setView();
 }
 /* ---------- Resumen e Inversión: filas en Supabase, protegidas con un código de acceso propio ---------- */
 const SB = { url:'https://gzewqeoqsgoljzuglwpc.supabase.co', key:'sb_publishable_d2gsiwOPJwDyoKoIjgKIvA_WbVyoBJf' };
-const ing = { items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:LS('iSub') === 'fondos' ? 'fondos' : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null };
+const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:LS('iSub') === 'fondos' ? 'fondos' : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null };
+const TOPE_RESUMEN = 5000;   // máximo visible en la gráfica mes a mes del Resumen (€)
 const modoIng = () => sag.view === 'inv' ? 'inversion' : 'ingreso';  // la pestaña Resumen gestiona ingresos; Inversión, inversiones
 const CATS_ING = { ingreso:['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'],
 inversion:['Fondo indexado', 'Acciones', 'Criptomonedas', 'Plan de pensiones', 'Depósito', 'Otros'] };
@@ -886,16 +907,16 @@ function dibujarResumen(box, c, selIdx, irAlFinal) {
 const { keys, yr, cy, hm, ing:ii, gas, inv, mIng, mGas, mInv } = c, n = keys.length, prevScroll = box.scrollLeft;
 const cw = Math.max(box.clientWidth, 200), H = Math.max(box.clientHeight, 120);
 const step = Math.min(Math.max(yr ? 84 : 64, cw / n), 120), W = Math.max(cw, n * step), T = 18, B = 22, bw = step * 0.34, gap = step * 0.05;
-const mx = Math.max(...ii, ...gas.map((v, k) => v + inv[k]), mIng, mGas + mInv, 1) * 1.04;
-const y = v => T + (1 - v / mx) * (H - T - B);
+const cap = c.cap || 0, mx = cap || Math.max(...ii, ...gas.map((v, k) => v + inv[k]), mIng, mGas + mInv, 1) * 1.04;   // con tope, la escala es fija y lo que lo supera se recorta (▲)
+const y = v => T + (1 - Math.min(v, mx) / mx) * (H - T - B);
 const fk = v => v >= 1000 ? (v / 1000).toLocaleString('es-ES', { maximumFractionDigits:1 }) + 'k' : String(Math.round(v));
-let g = [0, .5, 1].map(f => `<line x1="0" x2="${W}" y1="${y(mx * f).toFixed(1)}" y2="${y(mx * f).toFixed(1)}" stroke="var(--grid)"/>`).join('');
+let g = [0, .5, 1].map(f => `<line x1="0" x2="${W}" y1="${y(mx * f).toFixed(1)}" y2="${y(mx * f).toFixed(1)}" stroke="var(--grid)"/>` + (f ? `<text x="3" y="${(y(mx * f) - 3).toFixed(1)}" font-size="9.5" fill="var(--ink3)">${fk(mx * f)}</text>` : '')).join('');
 const rect = (x, v0, v1, color, op, sel) => v1 > v0 ? `<rect x="${x.toFixed(1)}" y="${y(v1).toFixed(1)}" width="${bw.toFixed(1)}" height="${(y(v0) - y(v1)).toFixed(1)}" fill="${color}" opacity="${op}" ${sel ? 'stroke="var(--ink)" stroke-width="1.2"' : ''}/>` : '';
 keys.forEach((k, i) => {
 const cur = yr ? k === cy : k === hm, op = cur ? .55 : 1, sel = i === selIdx, x0 = i * step + (step - (2 * bw + gap)) / 2, x1 = x0 + bw + gap, ap = inv[i] + gas[i];
 g += rect(x0, 0, ii[i], 'var(--good)', op, sel) + rect(x1, 0, inv[i], 'var(--s1)', op, sel) + rect(x1, inv[i], ap, 'var(--s2)', op, sel);
-if (ii[i] > 0) g += `<text x="${(x0 + bw / 2).toFixed(1)}" y="${(y(ii[i]) - 4).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--ink2)">${fk(ii[i])}</text>`;
-if (ap > 0) g += `<text x="${(x1 + bw / 2).toFixed(1)}" y="${(y(ap) - 4).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--ink2)">${fk(ap)}</text>`;
+if (ii[i] > 0) g += `<text x="${(x0 + bw / 2).toFixed(1)}" y="${(y(ii[i]) - 4).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--ink2)">${fk(ii[i]) + (ii[i] > mx ? '▲' : '')}</text>`;
+if (ap > 0) g += `<text x="${(x1 + bw / 2).toFixed(1)}" y="${(y(ap) - 4).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--ink2)">${fk(ap) + (ap > mx ? '▲' : '')}</text>`;
 g += `<text x="${(i * step + step / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10.5" fill="${sel ? 'var(--ink)' : 'var(--ink3)'}" ${sel ? 'font-weight="600"' : ''}>${esc(yr ? k : shortMonth(k))}</text>`;
 g += `<rect data-i="${i}" x="${i * step}" y="0" width="${step}" height="${H}" fill="transparent" style="cursor:pointer"/>`;
 });
@@ -903,7 +924,7 @@ g += `<rect data-i="${i}" x="${i * step}" y="0" width="${step}" height="${H}" fi
 const media = (v, color) => v > 0 ? `<line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--card)" stroke-width="4" opacity=".75" pointer-events="none"/><line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${color}" stroke-width="1.9" stroke-dasharray="6 4" pointer-events="none"/>` : '';
 g += media(mIng, 'var(--good)') + media(mInv, 'var(--s1)') + media(mInv + mGas, 'var(--s2)');
 box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Ingresos frente a gastos e inversión por ${yr ? 'año' : 'mes'}">${g}</svg>`;
-box.scrollLeft = irAlFinal ? box.scrollWidth : prevScroll;
+box.scrollLeft = irAlFinal ? (cap ? Math.max(0, (selIdx + .5) * step - cw / 2) : box.scrollWidth) : prevScroll;   // con un año a la vista, centrado en el mes elegido
 }
 function pintarIng() {
 document.querySelectorAll('#iWho button').forEach(b => b.setAttribute('aria-pressed', b.dataset.p === state.who));
@@ -911,6 +932,7 @@ document.querySelectorAll('#iGran button').forEach(b => b.setAttribute('aria-pre
 $('iMsg').textContent = ing.msg; $('iMsg').classList.toggle('hidden', !ing.msg);
 const m = modoIng(), res = m === 'ingreso', X = TXT_ING[m];
 const yr = ing.gran === 'y', hm = hoyStr().slice(0, 7), cy = hm.slice(0, 4);
+$('iYear').classList.add('hidden');
 $('iAdd').disabled = ing.estado !== 'ok'; $('iAdd').textContent = X.add;
 $('iChange').classList.toggle('hidden', ing.estado !== 'ok');
 $('iListT').textContent = X.lista;
@@ -945,15 +967,22 @@ const gby = res ? suma([...GASTOS.filter(t => importe(t) > 0).map(t => ({ d:t.d,
 const kk = [...its, ...invs].map(t => kf(t.d)).sort();
 const first = kk.length ? kk[0] : kf(hm), lastK = kk.length ? kk[kk.length - 1] : kf(hm);
 const end = lastK > kf(hm) ? lastK : kf(hm);
+const mesAnio = res && !yr;   // Resumen mes a mes: se ve un año cada vez (con flechas para cambiar de año)
+const aMin = Math.min(+cy, ...[...its, ...invs].map(t => +t.d.slice(0, 4)), +(firstMonth || cy).slice(0, 4));
+if (mesAnio && (!ing.anio || +ing.anio > +cy || +ing.anio < aMin)) ing.anio = cy;
+if (mesAnio) { $('iYear').classList.remove('hidden'); $('iYearL').textContent = ing.anio; $('iPrevY').disabled = +ing.anio <= aMin; $('iNextY').disabled = +ing.anio >= +cy; }
 const keys = [];
-if (yr) { for (let y = +first; y <= +end; y++) keys.push(String(y)); } else { for (let mm = first; mm <= end; mm = shiftMonth(mm, 1)) keys.push(mm); }
+if (mesAnio) { for (let mm = 1; mm <= 12; mm++) keys.push(ing.anio + '-' + String(mm).padStart(2, '0')); }
+else if (yr) { for (let y = +first; y <= +end; y++) keys.push(String(y)); } else { for (let mm = first; mm <= end; mm = shiftMonth(mm, 1)) keys.push(mm); }
 const vals = keys.map(k => by[k] || 0), gas = keys.map(k => gby[k] || 0), inv = keys.map(k => iby[k] || 0);
-let i = keys.indexOf(ing.selKey); if (i < 0) i = keys.length - 1;
+let i = keys.indexOf(ing.selKey);
+if (i < 0) { const ok = keys.filter(k => k <= (yr ? cy : hm)); i = ok.length ? keys.indexOf(ok[ok.length - 1]) : keys.length - 1; }
 ing.selKey = keys[i];
 const lbl = yr ? keys[i] : monthLabel(keys[i]);
 const total = vals[i];
 const nIng = its.filter(t => kf(t.d) === keys[i]);
 const sumAll = vals.reduce((s, v) => s + v, 0);
+const kBase = mesAnio ? keys.filter(k => k <= hm) : keys, promedio = a => kBase.length ? kBase.reduce((t, k) => t + a[keys.indexOf(k)], 0) / kBase.length : 0;
 $('iLabel').textContent = (res ? 'Ingresos' : 'Inversión') + ' · ' + lbl + (!res ? ' · ' + (miembroFan() || 'Fan') : state.who === 'Total' ? ' · grupo' : ' · ' + state.who);
 $('iHero').textContent = eur.format(total); $('iHero').style.color = res ? 'var(--good)' : 'var(--s1)';
 const tile = (n, l, v, cls) => { $('iT' + n + 'L').textContent = l; $('iT' + n).textContent = v; $('iT' + n).className = 'v num ' + (cls || ''); };
@@ -963,7 +992,7 @@ const bal = total - gas[i] - inv[i];
 tile(1, 'Gastos' + sagTxt, eur0.format(gas[i]));
 tile(2, 'Inversión', vistaFan() ? eur0.format(inv[i]) : '—');
 tile(3, 'Balance', (bal > 0 ? '+' : '') + eur0.format(bal), bal >= 0 ? 'pos' : 'neg');
-tile(4, yr ? 'Media anual' : 'Media mensual', eur0.format(keys.length ? sumAll / keys.length : 0));
+tile(4, yr ? 'Media anual' : 'Media mensual', eur0.format(promedio(vals)));
 } else {
 tile(1, 'Acumulado', eur0.format(sumAll));
 tile(2, yr ? 'Media anual' : 'Media mensual', eur0.format(keys.length ? sumAll / keys.length : 0));
@@ -972,11 +1001,11 @@ tile(4, 'Movimientos', its.length);
 }
 $('iCount').textContent = nIng.length ? nIng.length + ' mov.' : '';
 if (res) {
-const invV = vistaFan() ? inv : inv.map(() => 0), prom = a => keys.length ? a.reduce((s, v) => s + v, 0) / keys.length : 0, mIng = prom(vals), mGas = prom(gas), mInv = prom(invV);
-$('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span><span class="legend"><span><i class="sq" style="background:var(--good)"></i>ingresos · media ${eur0.format(mIng)}</span><span><i class="sq" style="background:var(--s2)"></i>gastos${sagTxt} · media ${eur0.format(mGas)}</span>`
+const invV = vistaFan() ? inv : inv.map(() => 0), prom = promedio, mIng = prom(vals), mGas = prom(gas), mInv = prom(invV);
+$('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes · ' + ing.anio}</span><span class="legend"><span><i class="sq" style="background:var(--good)"></i>ingresos · media ${eur0.format(mIng)}</span><span><i class="sq" style="background:var(--s2)"></i>gastos${sagTxt} · media ${eur0.format(mGas)}</span>`
 + (vistaFan() ? `<span><i class="sq" style="background:var(--s1)"></i>inversión · media ${eur0.format(mInv)}</span>` : '') + '<span style="color:var(--ink3)">- - medias</span></span>';
 $('iDetail').innerHTML = `<b>${esc(lbl)}</b>: ingresos ${eur0.format(vals[i])} · gastos ${eur0.format(gas[i])}` + (vistaFan() ? ` · inversión ${eur0.format(invV[i])}` : '');
-ing.ctx = { keys, yr, cy, hm, ing:vals, gas, inv:invV, mIng, mGas, mInv, i };
+ing.ctx = { keys, yr, cy, hm, ing:vals, gas, inv:invV, mIng, mGas, mInv, i, cap:mesAnio ? TOPE_RESUMEN : 0 };
 dibujarResumen($('iRows'), ing.ctx, i, ing.fresh);
 } else {
 $('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span><span class="legend"><span><i style="border-top:2.5px solid var(--s1)"></i>inversión</span></span>`;
@@ -1257,6 +1286,8 @@ $('q').addEventListener('input', () => { state.q = $('q').value; if (state.q.tri
 $('hq').addEventListener('input', () => { hist.q = $('hq').value; pintarHist(); });
 $('iWho').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.who = b.dataset.p; LSset('who', state.who); ing.selKey = null; ing.fresh = true; pintar(); pintarIng(); });
 $('iGran').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.gran = b.dataset.g; LSset('iGran', ing.gran); ing.selKey = null; ing.fresh = true; pintarIng(); } });
+$('iPrevY').onclick = () => { ing.anio = String(+ing.anio - 1); ing.selKey = null; ing.fresh = true; pintarIng(); };
+$('iNextY').onclick = () => { ing.anio = String(+ing.anio + 1); ing.selKey = null; ing.fresh = true; pintarIng(); };
 $('iAdd').onclick = () => modoIng() === 'inversion' ? abrirFondo(null) : abrirIng(null);
 $('iChange').onclick = cambiarCodigo;
 $('iRows').addEventListener('submit', e => { if (e.target.id === 'iCodeForm') enviarCodigo(e); });
