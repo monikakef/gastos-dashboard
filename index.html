@@ -256,6 +256,23 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <section class="card catsCard"><h2><span id="iListT">Ingresos del periodo</span><span class="label" id="iCount"></span></h2><div class="scroll" id="iList"></div></section>
 </div>
 </section>
+<dialog id="xDlg">
+<form id="xForm" autocomplete="off">
+<h3 id="xTitulo" style="margin:0 0 6px;font-size:17px">Aportación extraordinaria</h3>
+<div id="xFondo" style="font-size:13px;color:var(--ink2);margin-bottom:10px"></div>
+<label>Fecha<input type="date" id="xFecha" required></label>
+<label>Importe (€)<input type="number" id="xImp" step="0.01" min="0.01" inputmode="decimal" required placeholder="1000"></label>
+<label>Nota (opcional)<input type="text" id="xNota" maxlength="80" placeholder="Paga extra, bonus…"></label>
+<div id="xAviso" style="font-size:12px;color:var(--ink3);margin:-2px 0 8px"></div>
+<div id="xErr" role="alert" style="color:var(--bad);min-height:1.2em;font-size:13px;margin-bottom:6px"></div>
+<div class="dlgBtns">
+<button type="button" id="xDel" class="btn2 danger hidden">Eliminar</button>
+<span style="flex:1"></span>
+<button type="button" id="xCancel" class="btn2">Cancelar</button>
+<button type="submit" class="btn sm" id="xSave">Guardar</button>
+</div>
+</form>
+</dialog>
 <dialog id="vDlg">
 <form id="vForm" autocomplete="off">
 <h3 id="vTitulo" style="margin:0 0 10px;font-size:17px">Nuevo fondo</h3>
@@ -571,7 +588,8 @@ async function ingListar() {
 const [rows, fon] = await Promise.all([rpc('ingresos_listar', { p_codigo:ing.code }), rpc('fondos_listar', { p_codigo:ing.code })]);
 ing.fondos = fon.map(f => ({ id:f.id, nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
 baseFecha:f.base_fecha, baseAportado:f.base_aportado == null ? null : Number(f.base_aportado), baseValor:f.base_valor == null ? null : Number(f.base_valor), rent:f.rent_anual == null ? null : Number(f.rent_anual), persona:f.persona }));
-ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso', per:r.periodicidad || 'unica', fin:r.fecha_fin || null, rent:r.rent_anual == null ? null : Number(r.rent_anual) }));
+ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso', per:r.periodicidad || 'unica', fin:r.fecha_fin || null, rent:r.rent_anual == null ? null : Number(r.rent_anual), fondoId:r.fondo_id || null }));
+ing.items.forEach(t => { if (t.fondoId) { t.extra = true; const f = ing.fondos.find(x => x.id === t.fondoId); if (f) t.cat = f.nombre; } });  // aportaciones extraordinarias de un fondo
 }
 function ingCodigoMal() {
 ing.code = ''; LSset('ingCode', null); ing.estado = 'codigo'; ing.hayCodigo = true; ing.msg = 'Código incorrecto.';
@@ -675,12 +693,14 @@ const hoy = hoyStr(), tope = sumarMeses(hoy, anios * 12);
 return ing.fondos.map(f => {
 const isin = f.isin, px = isin && precios[isin] && precios[isin].estado === 'ok' ? precios[isin] : null;
 const plan = f.aporte && f.desde ? ocurrencias({ d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta }, tope) : [];
+const ex = ing.items.filter(t => t.tipo === 'inversion' && t.fondoId === f.id).map(t => ({ d:t.d, amount:t.amount }));   // extraordinarias de este fondo
 const anclado = f.baseValor != null && !!f.baseFecha;
-const d0 = anclado ? f.baseFecha : sumarDias(f.desde, -1), v0 = anclado ? f.baseValor : 0;
-const aport0 = !anclado ? 0 : f.baseAportado != null ? f.baseAportado : plan.filter(t => t.d <= d0).reduce((s, t) => s + t.amount, 0);
+const primera = [f.desde, ...ex.map(t => t.d)].filter(Boolean).sort()[0];
+const d0 = anclado ? f.baseFecha : sumarDias(primera || hoy, -1), v0 = anclado ? f.baseValor : 0;
+const aport0 = !anclado ? 0 : f.baseAportado != null ? f.baseAportado : [...plan, ...ex].filter(t => t.d <= d0).reduce((s, t) => s + t.amount, 0);
 const F = { id:f.id, nombre:f.nombre, isin, f, d0, v0, aport0, anclado, rManual:(f.rent || 0) / 100, rOver:f.rent == null ? null : f.rent / 100, px,
 pxEstado:isin ? (precios[isin] ? precios[isin].estado : 'pendiente') : 'sin', pxMsg:isin && precios[isin] ? precios[isin].msg : '',
-ap:plan.filter(t => t.d > d0).map(t => ({ d:t.d, a:t.amount })) };
+ap:[...plan, ...ex].filter(t => t.d > d0).map(t => ({ d:t.d, a:t.amount })).sort((a, b) => a.d < b.d ? -1 : 1), extras:ex };
 if (px) {
 const s = px.serie, last = s[s.length - 1], lim = sumarMeses(last[0], -60);
 let i0 = 0; while (i0 < s.length - 1 && s[i0][0] < lim) i0++;
@@ -730,10 +750,11 @@ const precio = !f.isin ? 'sin ISIN: estimación manual' : f.px ? `VL ${f.navHoy.
 const pct = f.aportado > 0 ? ' (' + (f.gan >= 0 ? '+' : '') + pc(f.gan / f.aportado * 100) + ' %)' : '';
 const plan = f.f.aporte ? `Aportas ${eur0.format(f.f.aporte)} ${NOMBRE_PER[f.f.per]} desde ${corta(f.f.desde)}${f.f.hasta ? ' hasta ' + corta(f.f.hasta) : ''}` : 'sin aportación periódica';
 const base = f.anclado ? `Partes de ${eur0.format(f.v0)} (aportado ${eur0.format(f.aport0)}) el ${corta(f.d0)}` : 'Reconstruido desde la primera aportación';
+const extrasTxt = f.extras.length ? ` · ${f.extras.length} extra${f.extras.length === 1 ? '' : 's'} (${eur0.format(f.extras.reduce((s, t) => s + t.amount, 0))})` : '';
 return `<div class="row" data-fondo="${esc(f.nombre)}" style="cursor:pointer;${ing.fondoSel === norm(f.nombre) ? 'background:var(--grid);border-radius:8px;padding-left:6px;padding-right:6px' : ''}"><div>
-<div class="d">${esc(f.nombre)} <button class="btn2" data-edit="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">Editar</button></div>
+<div class="d">${esc(f.nombre)} <button class="btn2" data-edit="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">Editar</button><button class="btn2" data-extra="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">+ Aportación</button></div>
 <div class="c">${f.isin ? esc(f.isin) + ' · ' : ''}${precio}</div>
-<div class="c">${plan} · ${base}</div>
+<div class="c">${plan}${extrasTxt} · ${base}</div>
 <div class="c">Aportado ${eur0.format(f.aportado)} · beneficio <span class="${f.gan >= 0 ? 'pos' : 'neg'}">${f.gan >= 0 ? '+' : ''}${eur0.format(f.gan)}${pct}</span> · rentab. ${pc(f.r * 100)} %/año (${f.rFuente})</div>
 </div><div class="m num">${eur.format(f.hoy)}</div></div>`;
 }).join('') : '<div class="empty" style="padding:8px 0;font-size:13px">Pulsa «+ Nuevo fondo» e indica su ISIN, cuánto aportas cada mes y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Busco los precios, estimo su valor de hoy y proyecto su evolución.</div>';
@@ -775,6 +796,38 @@ tip.style.left = Math.min(Math.max(x(i) / W * r.width - 50, 0), r.width - 130) +
 };
 svg.addEventListener('pointermove', mover); svg.addEventListener('pointerdown', mover);
 svg.addEventListener('pointerleave', () => { $('pCross').classList.add('hidden'); tip.classList.add('hidden'); });
+}
+function avisoExtra() {
+const f = ing.fondos.find(x => x.id === ing.extraFondo), d = $('xFecha').value;
+$('xAviso').textContent = f && f.baseValor != null && f.baseFecha && d && d <= f.baseFecha
+? 'Esta fecha es anterior o igual a la del valor que indicaste para el fondo (' + new Date(f.baseFecha + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' }) + '): se considera ya incluida en ese valor. Para que cuente, usa una fecha posterior o actualiza el valor del fondo.' : '';
+}
+function abrirExtra(fondoId, id) {
+const t = id ? ing.items.find(x => x.id === id) : null, fid = t ? t.fondoId : fondoId, f = ing.fondos.find(x => x.id === fid);
+if (!f) return;
+ing.extraId = t ? t.id : null; ing.extraFondo = fid;
+$('xTitulo').textContent = t ? 'Editar aportación extraordinaria' : 'Aportación extraordinaria';
+$('xFondo').textContent = 'Fondo: ' + f.nombre;
+$('xFecha').value = t ? t.d : hoyStr(); $('xImp').value = t ? t.amount : ''; $('xNota').value = t ? t.desc : '';
+$('xDel').classList.toggle('hidden', !t); $('xErr').textContent = '';
+avisoExtra();
+$('xDlg').showModal();
+}
+async function guardarExtra(e) {
+e.preventDefault();
+const f = ing.fondos.find(x => x.id === ing.extraFondo), d = $('xFecha').value, importe = Math.round(parseFloat($('xImp').value) * 100) / 100;
+if (!f) return;
+if (!d || !(importe > 0)) { $('xErr').textContent = 'Indica una fecha y un importe mayor que 0.'; return; }
+$('xSave').disabled = true;
+const ok = await ingOp(() => rpc('ingresos_guardar', { p_codigo:ing.code, p_id:ing.extraId || crypto.randomUUID(), p_fecha:d, p_concepto:$('xNota').value.trim(), p_importe:importe, p_categoria:f.nombre,
+p_persona:f.persona || miembroFan() || 'Fan', p_tipo:'inversion', p_periodicidad:'unica', p_fecha_fin:null, p_rent_anual:null, p_fondo_id:f.id }));
+$('xSave').disabled = false;
+if (ok || ing.estado !== 'ok') $('xDlg').close(); else $('xErr').textContent = ing.msg;
+}
+async function borrarExtra() {
+if (!ing.extraId || !confirm('¿Eliminar esta aportación extraordinaria? No se puede deshacer.')) return;
+const ok = await ingOp(() => rpc('ingresos_borrar', { p_codigo:ing.code, p_id:ing.extraId }));
+if (ok || ing.estado !== 'ok') $('xDlg').close(); else $('xErr').textContent = ing.msg;
 }
 function abrirFondo(id) {
 const f = id ? ing.fondos.find(x => x.id === id) : null;
@@ -889,7 +942,7 @@ $('iDetail').innerHTML = its.length ? `<b>${esc(lbl)}</b>: ${nIng.length} ${res 
 $('iCount').textContent = nIng.length ? nIng.length + ' mov.' : '';
 ing.ctx = { keys, vals, yr, cy, hm, color:res ? 'var(--good)' : 'var(--s1)', lines:res ? [{ vals:gas, color:'var(--s2)' }, ...(vistaFan() ? [{ vals:inv, color:'var(--s1)' }] : [])] : [], i };
 dibujarBarras($('iRows'), ing.ctx, i, ing.fresh); ing.fresh = false;
-$('iList').innerHTML = [...nIng].sort((a, b) => b.d.localeCompare(a.d)).map(t => `<div class="row" data-id="${esc(t.id)}"${t.fondoId ? ' data-fid="1"' : ''}><div><div class="d">${esc(t.desc || t.cat || (res ? 'Ingreso' : 'Inversión'))}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' })}</b> · ${esc(t.cat || 'Sin categoría')} · ${esc(t.p)}${t.rec ? ' · ↻ ' + NOMBRE_PER[t.per] : ''}</div></div><div class="m num ${res ? 'pos' : ''}">${eur.format(t.amount)}</div></div>`).join('') || `<div class="empty">Sin ${res ? 'ingresos' : 'inversiones'} en este periodo</div>`;
+$('iList').innerHTML = [...nIng].sort((a, b) => b.d.localeCompare(a.d)).map(t => `<div class="row" data-id="${esc(t.id)}"${t.rec && t.fondoId ? ' data-fid="1"' : ''}${t.extra ? ' data-xid="1"' : ''}><div><div class="d">${esc(t.desc || t.cat || (res ? 'Ingreso' : 'Inversión'))}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' })}</b> · ${esc(t.cat || 'Sin categoría')} · ${esc(t.p)}${t.rec ? ' · ↻ ' + NOMBRE_PER[t.per] : t.extra ? ' · extraordinaria' : ''}</div></div><div class="m num ${res ? 'pos' : ''}">${eur.format(t.amount)}</div></div>`).join('') || `<div class="empty">Sin ${res ? 'ingresos' : 'inversiones'} en este periodo</div>`;
 }
 function abrirIng(id) {
 const t = id ? ing.items.find(x => x.id === id) : null, m = t ? t.tipo : modoIng(), X = TXT_ING[m];
@@ -1168,11 +1221,12 @@ $('iRows').addEventListener('click', e => {
 if (e.target.id === 'iRetry') { ingCargar(true); return; }
 const r = e.target.closest('[data-i]'); if (r && ing.ctx) { ing.selKey = ing.ctx.keys[+r.dataset.i]; pintarIng(); }
 });
-$('iList').addEventListener('click', e => { const r = e.target.closest('[data-id]'); if (r) { if (r.dataset.fid) abrirFondo(r.dataset.id); else abrirIng(r.dataset.id); } });
+$('iList').addEventListener('click', e => { const r = e.target.closest('[data-id]'); if (r) { if (r.dataset.xid) abrirExtra(null, r.dataset.id); else if (r.dataset.fid) abrirFondo(r.dataset.id); else abrirIng(r.dataset.id); } });
 $('iForm').addEventListener('submit', guardarIng);
 $('fCancel').onclick = () => $('iDlg').close();
 $('iFondosL').addEventListener('click', e => {
 const re = e.target.closest('[data-retry]'); if (re) { e.preventDefault(); cargarPrecios(re.dataset.retry, true); pintarIng(); return; }
+const ex = e.target.closest('[data-extra]'); if (ex) { abrirExtra(ex.dataset.extra, null); return; }
 const ed = e.target.closest('[data-edit]'); if (ed) { abrirFondo(ed.dataset.edit); return; }
 const r = e.target.closest('[data-fondo]'); if (r) { const k = norm(r.dataset.fondo); ing.fondoSel = ing.fondoSel === k ? null : k; pintarIng(); }  // tocar un fondo = ver solo ese en la gráfica; otra vez = todos
 });
@@ -1182,6 +1236,10 @@ let rzp; new ResizeObserver(() => { clearTimeout(rzp); rzp = setTimeout(() => { 
 $('vForm').addEventListener('submit', guardarFondo);
 $('vCancel').onclick = () => $('vDlg').close();
 $('vDel').onclick = borrarFondo;
+$('xForm').addEventListener('submit', guardarExtra);
+$('xCancel').onclick = () => $('xDlg').close();
+$('xDel').onclick = borrarExtra;
+$('xFecha').addEventListener('change', avisoExtra);
 $('fPer').addEventListener('change', () => $('fFinL').classList.toggle('hidden', $('fPer').value === 'unica'));
 $('fDel').onclick = borrarIng;
 let rzi; new ResizeObserver(() => { clearTimeout(rzi); rzi = setTimeout(() => { if ((sag.view === 'ing' || sag.view === 'inv') && ing.estado === 'ok') pintarIng(); }, 80); }).observe($('iRows'));
