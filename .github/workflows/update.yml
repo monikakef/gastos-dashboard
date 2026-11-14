@@ -28,10 +28,14 @@ jobs:
       - name: Descargar y cifrar
         env:
           TRICOUNT_KEY: ${{ secrets.TRICOUNT_KEY }}
+          TRICOUNT_KEY_SAGUNTO: ${{ secrets.TRICOUNT_KEY_SAGUNTO }}
           DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
         run: |
           python fetch_tricount.py transactions.json
-          python build.py transactions.json
+          if [ -n "$TRICOUNT_KEY_SAGUNTO" ]; then
+            python fetch_tricount.py sagunto.json --key-env=TRICOUNT_KEY_SAGUNTO
+          fi
+          python build.py transactions.json sagunto.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

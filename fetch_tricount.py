@@ -2,6 +2,7 @@
 
 Uso:
   TRICOUNT_KEY=xxxx python fetch_tricount.py out.json
+  TRICOUNT_KEY_SAGUNTO=xxxx python fetch_tricount.py sagunto.json --key-env=TRICOUNT_KEY_SAGUNTO
   python fetch_tricount.py out.json --from-file response_data.json   (prueba sin red)
 """
 import json, os, sys, uuid
@@ -74,9 +75,10 @@ if __name__ == "__main__":
         src = args[1]
         data = json.load(open(src, encoding="utf-8"))
     else:
-        key = os.environ.get("TRICOUNT_KEY")
+        key_env = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--key-env=")), "TRICOUNT_KEY")
+        key = os.environ.get(key_env)
         if not key:
-            sys.exit("Falta la variable TRICOUNT_KEY")
+            sys.exit(f"Falta la variable {key_env}")
         data = descargar(key)
     res = parsear(data)
     with open(out, "w", encoding="utf-8") as f:

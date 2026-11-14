@@ -89,7 +89,12 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .empty { color:var(--ink2); text-align:center; padding:18px 0; }
 .foot { flex:none; color:var(--ink3); font-size:11px; text-align:center; }
 .foot button { background:none; border:0; color:var(--s1); font-size:11px; padding:2px 6px; }
+.views { flex:none; display:flex; } .views .seg { width:100%; } .views .seg button { flex:1; font-size:14px; padding:7px 10px; }
+.sag { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
+.sag .catsCard { flex:1; }
+.sag .hero .big { font-size:36px; }
 @media (min-width:900px) {
+.views, .sag { width:100%; max-width:720px; margin-left:auto; margin-right:auto; }
 #app { padding:14px; gap:10px; } .grid { gap:10px; }
 .grid { grid-template-columns:minmax(300px,.9fr) minmax(0,1.1fr) minmax(0,1.1fr); grid-template-rows:minmax(0,1fr) minmax(0,1fr);
 grid-template-areas:"hero chart chart" "comp cats list"; }
@@ -113,6 +118,10 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <button class="btn" type="submit">Entrar</button>
 </form>
 <main id="app" class="hidden">
+<div class="views hidden" id="views"><div class="seg" role="group" aria-label="Vista">
+<button data-v="gastos" aria-pressed="true">Gastos</button>
+<button data-v="sagunto" aria-pressed="false">Sagunto</button>
+</div></div>
 <div class="top">
 <div class="month">
 <button id="prev" aria-label="Mes anterior">‹</button>
@@ -150,6 +159,30 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <section class="pane list" id="paneList"><h2>Movimientos <span class="label" id="count"></span></h2><div class="scroll" id="list"></div></section>
 </div>
 </div>
+<section class="sag hidden" id="sag">
+<div class="top">
+<div class="month" id="sMonthBox">
+<button id="sPrev" aria-label="Mes anterior">‹</button>
+<strong id="sMonthName"></strong>
+<button id="sNext" aria-label="Mes siguiente">›</button>
+</div>
+<div class="seg" id="sPeriod" role="group" aria-label="Periodo">
+<button data-p="mes" aria-pressed="true">Mes</button>
+<button data-p="total" aria-pressed="false">Total</button>
+</div>
+</div>
+<section class="card hero">
+<div class="label" id="sLabel"></div>
+<div class="big num" id="sHero"></div>
+<div class="delta" id="sDelta"></div>
+<div class="tiles">
+<div class="tile"><div class="label" id="sT1L"></div><div class="v num" id="sT1"></div></div>
+<div class="tile"><div class="label" id="sT2L"></div><div class="v num" id="sT2"></div></div>
+<div class="tile"><div class="label">Movimientos</div><div class="v num" id="sT3"></div></div>
+</div>
+</section>
+<section class="card catsCard"><h2>Por categoría</h2><div class="scroll" id="sCats"></div></section>
+</section>
 <div class="foot"><span id="updated"></span> <button id="reload">Recargar</button> <button id="logout">Salir</button></div>
 </main>
 <script>
@@ -228,6 +261,67 @@ state.month = hm;
 $('updated').textContent = 'Actualizado ' + new Date(DATA.generated).toLocaleString('es-ES', { dateStyle:'short', timeStyle:'short' }) + ' ·';
 setTab(tab);
 pintar();
+iniciarSagunto();
+}
+const sag = { view:LS('view') || 'gastos', period:LS('sagPeriod') || 'mes', month:null, months:[], items:[] };
+function iniciarSagunto() {
+const S = DATA.sagunto;
+$('views').classList.toggle('hidden', !S);
+if (!S) { sag.view = 'gastos'; setView(); return; }
+sag.items = S.transactions.filter(t => t.type === 'NORMAL');
+const hm = hoyStr().slice(0, 7);
+const ms = sag.items.map(t => ym(t.d)).concat(hm).sort();
+sag.months = [];
+for (let m = ms[0]; m <= ms[ms.length - 1]; m = shiftMonth(m, 1)) sag.months.push(m);
+sag.month = hm;
+setView();
+}
+function setView() {
+const s = sag.view === 'sagunto' && DATA.sagunto;
+if (!s) sag.view = 'gastos';
+LSset('view', sag.view);
+document.querySelectorAll('#views button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === sag.view));
+document.querySelector('#app > .top').classList.toggle('hidden', !!s);
+document.querySelector('#app > .grid').classList.toggle('hidden', !!s);
+$('sag').classList.toggle('hidden', !s);
+if (s) pintarSagunto(); else if (DATA) pintarGrafico();
+}
+function pintarSagunto() {
+const hm = hoyStr().slice(0, 7), tot = sag.period === 'total', m = sag.month, esActual = m === hm;
+const sum = a => a.reduce((s, t) => s + t.total, 0);
+const items = tot ? sag.items : sag.items.filter(t => ym(t.d) === m);
+const total = sum(items);
+const dias = daysIn(m), corte = esActual ? Math.min(+hoyStr().slice(8), dias) : dias;
+const mediaMes = sum(sag.items) / Math.max(sag.months.filter(x => x <= hm).length, 1);
+document.querySelectorAll('#sPeriod button').forEach(b => b.setAttribute('aria-pressed', b.dataset.p === sag.period));
+$('sMonthBox').classList.toggle('hidden', tot);
+$('sMonthName').textContent = monthLabel(m);
+$('sPrev').disabled = sag.months.indexOf(m) <= 0;
+$('sNext').disabled = sag.months.indexOf(m) >= sag.months.length - 1;
+$('sLabel').textContent = (DATA.sagunto.title || 'Sagunto') + (tot ? ' · total acumulado' : ' · ' + mName(m));
+$('sHero').textContent = eur.format(total);
+$('sDelta').textContent = '';
+if (!tot) {
+const prevM = shiftMonth(m, -1);
+const prevTo = sum(sag.items.filter(t => ym(t.d) === prevM && +t.d.slice(8) <= corte));
+const cur = sum(items.filter(t => +t.d.slice(8) <= corte));
+if (prevTo > 0) {
+const diff = cur - prevTo, pct = Math.round(Math.abs(diff) / prevTo * 100);
+$('sDelta').innerHTML = `<span class="${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '▲' : '▼'} ${eur0.format(Math.abs(diff))} (${pct}%)</span> ${diff > 0 ? 'más' : 'menos'} que ${esActual ? 'a día ' + corte + ' de ' + mName(prevM) : mName(prevM)}`;
+}
+$('sT1L').textContent = 'Media diaria'; $('sT1').textContent = eur0.format(total / Math.max(corte, 1));
+} else {
+$('sT1L').textContent = 'Meses'; $('sT1').textContent = sag.months.filter(x => x <= hm).length;
+}
+$('sT2L').textContent = 'Media mensual'; $('sT2').textContent = eur0.format(mediaMes);
+$('sT3').textContent = items.length;
+const by = {};
+items.forEach(t => { const c = t.cat || 'Sin categoría'; by[c] = (by[c] || 0) + t.total; });
+const arr = Object.entries(by).sort((a, b) => b[1] - a[1]);
+if (!arr.length) { $('sCats').innerHTML = '<div class="empty">Sin gastos en este periodo</div>'; return; }
+const mx = arr[0][1];
+$('sCats').innerHTML = arr.map(([n, v]) => `<div class="cat"><span>${esc(n)}</span><span class="a num">${eur.format(v)}<small>${Math.round(v / total * 100)}%</small></span>
+<div class="bar"><span style="width:${(v / mx * 100).toFixed(1)}%"></span></div></div>`).join('');
 }
 let chartCtx = null;
 function pintar() {
@@ -367,6 +461,10 @@ $('who').addEventListener('click', e => { const b = e.target.closest('button'); 
 $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTab(b.dataset.t); });
 $('prev').onclick = () => { state.month = months[months.indexOf(state.month) - 1]; pintar(); };
 $('next').onclick = () => { state.month = months[months.indexOf(state.month) + 1]; pintar(); };
+$('views').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { sag.view = b.dataset.v; setView(); } });
+$('sPeriod').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { sag.period = b.dataset.p; LSset('sagPeriod', sag.period); pintarSagunto(); } });
+$('sPrev').onclick = () => { sag.month = sag.months[sag.months.indexOf(sag.month) - 1]; pintarSagunto(); };
+$('sNext').onclick = () => { sag.month = sag.months[sag.months.indexOf(sag.month) + 1]; pintarSagunto(); };
 $('reload').onclick = () => location.reload();
 $('logout').onclick = () => { LSset('pw', null); location.reload(); };
 const saved = LS('pw');

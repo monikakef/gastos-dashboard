@@ -1,6 +1,6 @@
 """Cifra los movimientos (AES-256-GCM, clave derivada con PBKDF2) y prepara site/.
 
-Uso: DASH_PASSWORD=... python build.py transactions.json
+Uso: DASH_PASSWORD=... python build.py transactions.json [sagunto.json]
 """
 import base64, json, os, shutil, sys
 from datetime import datetime, timezone
@@ -17,6 +17,8 @@ if not password:
     sys.exit("Falta la variable DASH_PASSWORD")
 
 payload = json.load(open(src, encoding="utf-8"))
+if len(sys.argv) > 2 and os.path.exists(sys.argv[2]):  # Tricount secundario (Sagunto), opcional
+    payload["sagunto"] = json.load(open(sys.argv[2], encoding="utf-8"))
 payload["generated"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 salt, iv = os.urandom(16), os.urandom(12)
