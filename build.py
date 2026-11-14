@@ -29,4 +29,6 @@ os.makedirs("site", exist_ok=True)
 with open("site/data.json", "w") as f:
     json.dump({"iter": ITER, "salt": b64(salt), "iv": b64(iv), "ct": b64(ct)}, f)
 shutil.copy("index.html", "site/index.html")
+for f in ("icon.svg", "icon-192.png", "icon-512.png", "apple-touch-icon.png", "manifest.webmanifest"):
+    shutil.copy(f, "site/" + f)
 print("site/ listo")
