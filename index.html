@@ -107,12 +107,24 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .sagRow .sagChart { flex:1.6; min-height:190px; }
 .sagRow .catsCard { flex:1; min-height:110px; }
 .sagChart .seg button { padding:3px 9px; font-size:12px; }
+.btn.sm { padding:8px 14px; font-size:14px; }
+.btn2 { padding:8px 14px; font-size:14px; border-radius:12px; border:1px solid var(--line); background:none; color:var(--ink); }
+.btn2.danger { color:var(--bad); }
+#ing .top { flex-wrap:wrap; }
+#ing .row { cursor:pointer; }
+.m.pos, .pos { color:var(--good); } .neg { color:var(--bad); }
+dialog { background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:16px; padding:16px; width:min(92vw,380px); }
+dialog::backdrop { background:rgba(0,0,0,.55); }
+dialog label { display:block; font-size:12.5px; color:var(--ink2); margin-bottom:10px; }
+dialog input, dialog select { display:block; width:100%; margin-top:3px; font:inherit; font-size:16px; padding:10px; border-radius:10px; border:1px solid var(--line); background:var(--surface); color:var(--ink); }
+#fErr { color:var(--bad); min-height:1.2em; font-size:13px; margin-bottom:6px; }
+.dlgBtns { display:flex; gap:8px; align-items:center; }
 .hbody { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
 .hbody .hscroll { flex:1.2; }
 .hside { flex:1; min-height:90px; display:flex; flex-direction:column; border-top:1px solid var(--line); padding-top:6px; }
 .hside .row .c b { color:var(--ink2); font-weight:600; }
 @media (min-width:900px) {
-#hist, #sag { max-width:1100px; }
+#hist, #sag, #ing { max-width:1100px; }
 .sagRow { flex-direction:row; gap:10px; }
 .sagRow .sagChart { flex:1.8; min-width:0; min-height:0; }
 .sagRow .catsCard { flex:1; min-width:0; min-height:0; }
@@ -153,6 +165,7 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <div class="views" id="views"><div class="seg" role="group" aria-label="Vista">
 <button data-v="gastos" aria-pressed="true">Gastos</button>
 <button data-v="hist" aria-pressed="false">Categorías</button>
+<button data-v="ing" aria-pressed="false">Ingresos</button>
 <button data-v="sagunto" id="vSag" class="hidden" aria-pressed="false">Sagunto</button>
 </div></div>
 <div class="top">
@@ -195,6 +208,52 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <div class="scroll" id="list"></div></section>
 </div>
 </div>
+<section class="sag hidden" id="ing">
+<div class="top">
+<div class="seg" id="iWho" role="group" aria-label="Persona"></div>
+<div class="seg" id="iGran" role="group" aria-label="Agrupar por">
+<button data-g="m" aria-pressed="true">Meses</button>
+<button data-g="y" aria-pressed="false">Años</button>
+</div>
+<button class="btn sm" id="iAdd" type="button">+ Añadir ingreso</button>
+<button class="btn2 hidden" id="iChange" type="button" title="Cambiar el código de acceso a los ingresos">Cambiar código</button>
+</div>
+<div id="iMsg" class="card hidden" style="flex:none;color:var(--bad);font-size:13px"></div>
+<section class="card hero">
+<div class="label" id="iLabel"></div>
+<div class="big num" id="iHero" style="color:var(--good)"></div>
+<div class="tiles">
+<div class="tile"><div class="label">Gastos</div><div class="v num" id="iT1"></div></div>
+<div class="tile"><div class="label">Balance</div><div class="v num" id="iT2"></div></div>
+<div class="tile"><div class="label" id="iT3L"></div><div class="v num" id="iT3"></div></div>
+</div>
+</section>
+<div class="sagRow">
+<section class="card sagChart">
+<h2 id="iTitle"></h2>
+<div class="delta" id="iDetail" style="margin:0 0 4px"></div>
+<div class="hscroll" id="iRows"></div>
+</section>
+<section class="card catsCard"><h2><span>Ingresos del periodo</span><span class="label" id="iCount"></span></h2><div class="scroll" id="iList"></div></section>
+</div>
+</section>
+<dialog id="iDlg">
+<form id="iForm" autocomplete="off">
+<h3 id="iDlgT" style="margin:0 0 10px;font-size:17px"></h3>
+<label>Fecha<input type="date" id="fFecha" required></label>
+<label>Concepto<input type="text" id="fDesc" maxlength="80" placeholder="Nómina de noviembre"></label>
+<label>Importe (€)<input type="number" id="fImp" step="0.01" min="0.01" inputmode="decimal" required></label>
+<label>Categoría<input type="text" id="fCat" list="iCats" maxlength="30" placeholder="Nómina"><datalist id="iCats"></datalist></label>
+<label>Persona<select id="fWho"></select></label>
+<div id="fErr" role="alert"></div>
+<div class="dlgBtns">
+<button type="button" id="fDel" class="btn2 danger">Eliminar</button>
+<span style="flex:1"></span>
+<button type="button" id="fCancel" class="btn2">Cancelar</button>
+<button type="submit" class="btn sm" id="fSave">Guardar</button>
+</div>
+</form>
+</dialog>
 <section class="sag hidden" id="hist">
 <div class="top">
 <div class="seg" id="hWho" role="group" aria-label="Persona"></div>
@@ -329,6 +388,7 @@ $('updated').textContent = 'Actualizado ' + new Date(DATA.generated).toLocaleStr
 setTab(tab);
 pintar();
 iniciarHist();
+$('iWho').innerHTML = $('who').innerHTML;
 iniciarSagunto();
 }
 const hist = { gran:LS('hGran') === 'y' ? 'y' : 'm', cats:new Set(), q:'' };
@@ -377,22 +437,24 @@ dibujarHist(true);
 }
 const shortMonth = k => { const [y, mo] = k.split('-').map(Number); return new Date(y, mo - 1, 1).toLocaleDateString('es-ES', { month:'short' }).replace('.', '') + ' ' + String(y).slice(2); };
 function dibujarBarras(box, c, selIdx, irAlFinal) {  // gráfica de barras verticales con scroll horizontal
-const { keys, vals, yr, cy, hm, avg } = c;
+const { keys, vals, yr, cy, hm, avg, color, line } = c;
 const prevScroll = box.scrollLeft;
 const cw = Math.max(box.clientWidth, 200), H = Math.max(box.clientHeight, 120);
 const step = Math.min(Math.max(yr ? 70 : 44, cw / keys.length), 96), W = Math.max(cw, keys.length * step);
-const T = 18, B = 22, mx = Math.max(...vals, 1) * 1.02, bw = step * 0.62;
+const T = 18, B = 22, mx = Math.max(...vals, ...(line || []), 1) * 1.02, bw = step * 0.62;
 const y = v => T + (1 - v / mx) * (H - T - B);
 let g = [0, .5, 1].map(f => `<line x1="0" x2="${W}" y1="${y(mx * f)}" y2="${y(mx * f)}" stroke="var(--grid)"/>`).join('');
 keys.forEach((k, i) => {
 const v = vals[i], cur = yr ? k === cy : k === hm, x = i * step + (step - bw) / 2, h = y(0) - y(v);
-if (v > 0) g += `<rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="var(--s1)" opacity="${cur ? .55 : 1}" ${i === selIdx ? 'stroke="var(--ink)" stroke-width="1.5"' : ''}/>`;
+if (v > 0) g += `<rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${color || 'var(--s1)'}" opacity="${cur ? .55 : 1}" ${i === selIdx ? 'stroke="var(--ink)" stroke-width="1.5"' : ''}/>`;
 if (v > 0) g += `<text x="${(i * step + step / 2).toFixed(1)}" y="${(y(v) - 4).toFixed(1)}" text-anchor="middle" font-size="10.5" fill="var(--ink2)">${eur0.format(v)}</text>`;
 g += `<text x="${(i * step + step / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10.5" fill="${i === selIdx ? 'var(--ink)' : 'var(--ink3)'}" ${i === selIdx ? 'font-weight="600"' : ''}>${esc(yr ? k : shortMonth(k))}</text>`;
 g += `<rect data-i="${i}" x="${i * step}" y="0" width="${step}" height="${H}" fill="transparent" style="cursor:pointer"/>`;
 });
 if (avg > 0) g += `<line x1="0" x2="${W}" y1="${y(avg).toFixed(1)}" y2="${y(avg).toFixed(1)}" stroke="var(--s2)" stroke-width="1.8" stroke-dasharray="5 4" pointer-events="none"/>`;
-box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gasto por ${yr ? 'año' : 'mes'}">${g}</svg>`;
+if (line) g += `<polyline points="${line.map((v, i) => `${(i * step + step / 2).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--s2)" stroke-width="2.2" stroke-linejoin="round" pointer-events="none"/>`
++ line.map((v, i) => `<circle cx="${(i * step + step / 2).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.2" fill="var(--s2)" pointer-events="none"/>`).join('');
+box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Importe por ${yr ? 'año' : 'mes'}">${g}</svg>`;
 box.scrollLeft = irAlFinal ? box.scrollWidth : prevScroll;
 }
 function dibujarHist(irAlFinal) {
@@ -442,16 +504,152 @@ for (let m = ms[0]; m <= ms[ms.length - 1]; m = shiftMonth(m, 1)) sag.months.pus
 sag.month = hm;
 setView();
 }
+/* ---------- Ingresos: filas en Supabase, protegidas con un código de acceso propio ---------- */
+const SB = { url:'https://gzewqeoqsgoljzuglwpc.supabase.co', key:'sb_publishable_d2gsiwOPJwDyoKoIjgKIvA_WbVyoBJf' };
+const ing = { items:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null };
+const CATS_ING = ['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'];
+async function rpc(fn, args) {
+const r = await fetch(SB.url + '/rest/v1/rpc/' + fn, { method:'POST', headers:{ apikey:SB.key, 'Content-Type':'application/json' }, body:JSON.stringify(args || {}) });
+const j = await r.json().catch(() => null);
+if (!r.ok) throw new Error((j && j.message) || 'Error ' + r.status);
+return j;
+}
+async function ingListar() {
+const rows = await rpc('ingresos_listar', { p_codigo:ing.code });
+ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona }));
+}
+function ingCodigoMal() {
+ing.code = ''; LSset('ingCode', null); ing.estado = 'codigo'; ing.hayCodigo = true; ing.msg = 'Código incorrecto.';
+}
+async function ingCargar(force) {
+if (ing.estado === 'cargando' || (ing.estado === 'ok' && !force)) return;
+ing.estado = 'cargando'; ing.msg = ''; pintarIng();
+try {
+if (!ing.code) { ing.hayCodigo = !!(await rpc('ingresos_estado')); ing.estado = 'codigo'; }
+else { await ingListar(); ing.estado = 'ok'; }
+} catch (e) {
+if (/acceso denegado/.test(e.message)) ingCodigoMal();
+else { ing.estado = 'error'; ing.msg = 'No se pudieron cargar los ingresos: ' + e.message; }
+}
+pintarIng();
+}
+async function ingOp(fn) {  // ejecuta una escritura y vuelve a leer la lista
+try { await fn(); await ingListar(); ing.msg = ''; pintarIng(); return true; }
+catch (e) {
+if (/acceso denegado/.test(e.message)) ingCodigoMal(); else ing.msg = 'No se pudo guardar: ' + e.message;
+pintarIng(); return false;
+}
+}
+async function enviarCodigo(e) {
+e.preventDefault();
+const c = $('iCode').value.trim();
+if (!ing.hayCodigo && c.length < 8) { ing.msg = 'El código debe tener al menos 8 caracteres.'; pintarIng(); return; }
+$('iCodeBtn2').disabled = true;
+try {
+if (!ing.hayCodigo) await rpc('ingresos_crear_codigo', { p_codigo:c });
+ing.code = c; LSset('ingCode', c); ing.estado = 'idle'; ing.msg = '';
+} catch (err) { ing.msg = err.message; }
+pintarIng();
+}
+async function cambiarCodigo() {
+const nuevo = (prompt('Nuevo código de acceso a los ingresos (mínimo 8 caracteres).\nEn los demás dispositivos tendrás que introducir el nuevo código.') || '').trim();
+if (!nuevo) return;
+if (nuevo.length < 8) { ing.msg = 'El código debe tener al menos 8 caracteres.'; pintarIng(); return; }
+try { await rpc('ingresos_cambiar_codigo', { p_codigo:ing.code, p_nuevo:nuevo }); ing.code = nuevo; LSset('ingCode', nuevo); ing.msg = ''; }
+catch (e) { if (/acceso denegado/.test(e.message)) ingCodigoMal(); else ing.msg = 'No se pudo cambiar el código: ' + e.message; }
+pintarIng();
+}
+function pintarIng() {
+document.querySelectorAll('#iWho button').forEach(b => b.setAttribute('aria-pressed', b.dataset.p === state.who));
+document.querySelectorAll('#iGran button').forEach(b => b.setAttribute('aria-pressed', b.dataset.g === ing.gran));
+$('iMsg').textContent = ing.msg; $('iMsg').classList.toggle('hidden', !ing.msg);
+const yr = ing.gran === 'y', hm = hoyStr().slice(0, 7), cy = hm.slice(0, 4);
+$('iAdd').disabled = ing.estado !== 'ok';
+$('iChange').classList.toggle('hidden', ing.estado !== 'ok');
+if (ing.estado === 'idle') { ingCargar(); return; }
+if (ing.estado !== 'ok') {
+$('iRows').innerHTML = ing.estado === 'cargando' ? '<div class="empty">Cargando ingresos…</div>'
+: ing.estado === 'codigo' ? `<form id="iCodeForm" class="empty" style="display:flex;flex-direction:column;gap:10px;max-width:340px;margin:0 auto;text-align:left">
+<div>${ing.hayCodigo ? 'Introduce el código de acceso a los ingresos.' : 'Crea un código de acceso para los ingresos (mínimo 8 caracteres). Es independiente de la contraseña del dashboard.'}</div>
+<input id="iCode" type="password" autocomplete="off" placeholder="Código de acceso" required style="font:inherit;font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink)">
+<button class="btn sm" id="iCodeBtn2" type="submit">${ing.hayCodigo ? 'Entrar' : 'Crear código'}</button></form>`
+: '<div class="empty"><button class="btn2" id="iRetry" type="button">Reintentar</button></div>';
+$('iList').innerHTML = ''; $('iHero').textContent = '—'; $('iLabel').textContent = 'Ingresos';
+['iT1', 'iT2', 'iT3'].forEach(i => $(i).textContent = '—'); $('iDetail').textContent = ''; $('iTitle').textContent = '';
+return;
+}
+const its = ing.items.filter(t => state.who === 'Total' || t.p === state.who);
+const kf = d => yr ? d.slice(0, 4) : d.slice(0, 7);
+const by = {}, gby = {};
+its.forEach(t => by[kf(t.d)] = (by[kf(t.d)] || 0) + t.amount);
+GASTOS.filter(t => importe(t) > 0).forEach(t => gby[kf(t.d)] = (gby[kf(t.d)] || 0) + importe(t));
+const first = its.length ? its.map(t => kf(t.d)).sort()[0] : kf(hm), lastK = its.length ? its.map(t => kf(t.d)).sort().pop() : kf(hm);
+const end = lastK > kf(hm) ? lastK : kf(hm);
+const keys = [];
+if (yr) { for (let y = +first; y <= +end; y++) keys.push(String(y)); } else { for (let m = first; m <= end; m = shiftMonth(m, 1)) keys.push(m); }
+const vals = keys.map(k => by[k] || 0), line = keys.map(k => gby[k] || 0);
+let i = keys.indexOf(ing.selKey); if (i < 0) i = keys.length - 1;
+ing.selKey = keys[i];
+const lbl = yr ? keys[i] : monthLabel(keys[i]);
+const total = vals[i], gastos = line[i], bal = total - gastos;
+const nIng = its.filter(t => kf(t.d) === keys[i]);
+$('iLabel').textContent = 'Ingresos · ' + lbl + (state.who === 'Total' ? ' · grupo' : ' · ' + state.who);
+$('iHero').textContent = eur.format(total);
+$('iT1').textContent = eur0.format(gastos);
+$('iT2').textContent = (bal > 0 ? '+' : '') + eur0.format(bal); $('iT2').className = 'v num ' + (bal >= 0 ? 'pos' : 'neg');
+const sumAll = vals.reduce((s, v) => s + v, 0);
+$('iT3L').textContent = yr ? 'Media anual' : 'Media mensual'; $('iT3').textContent = eur0.format(keys.length ? sumAll / keys.length : 0);
+$('iTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span><span class="legend"><span><i style="border-top:2.5px solid var(--good)"></i>ingresos</span><span><i style="border-top:2.5px solid var(--s2)"></i>gastos</span></span>`;
+$('iDetail').innerHTML = its.length ? `<b>${esc(lbl)}</b>: ${nIng.length} ingreso${nIng.length === 1 ? '' : 's'}` : 'Aún no hay ingresos. Pulsa «+ Añadir ingreso».';
+$('iCount').textContent = nIng.length ? nIng.length + ' mov.' : '';
+ing.ctx = { keys, vals, yr, cy, hm, color:'var(--good)', line, i };
+dibujarBarras($('iRows'), ing.ctx, i, ing.fresh); ing.fresh = false;
+$('iList').innerHTML = [...nIng].sort((a, b) => b.d.localeCompare(a.d)).map(t => `<div class="row" data-id="${esc(t.id)}"><div><div class="d">${esc(t.desc || t.cat || 'Ingreso')}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' })}</b> · ${esc(t.cat || 'Sin categoría')} · ${esc(t.p)}</div></div><div class="m num pos">${eur.format(t.amount)}</div></div>`).join('') || '<div class="empty">Sin ingresos en este periodo</div>';
+}
+function abrirIng(id) {
+const t = id ? ing.items.find(x => x.id === id) : null;
+ing.editId = t ? t.id : null;
+$('iDlgT').textContent = t ? 'Editar ingreso' : 'Añadir ingreso';
+$('fFecha').value = t ? t.d : hoyStr();
+$('fDesc').value = t ? t.desc : '';
+$('fImp').value = t ? t.amount : '';
+$('fCat').value = t ? t.cat : '';
+$('fWho').innerHTML = DATA.members.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+$('fWho').value = t ? t.p : (DATA.members.includes(state.who) ? state.who : DATA.members[0]);
+$('iCats').innerHTML = [...new Set([...CATS_ING, ...ing.items.map(x => x.cat).filter(Boolean)])].map(c => `<option value="${esc(c)}">`).join('');
+$('fDel').classList.toggle('hidden', !t);
+$('fErr').textContent = '';
+$('iDlg').showModal();
+}
+async function guardarIng(e) {
+e.preventDefault();
+const amount = Math.round(parseFloat($('fImp').value) * 100) / 100, d = $('fFecha').value;
+if (!d || !(amount > 0)) { $('fErr').textContent = 'Indica una fecha y un importe mayor que 0.'; return; }
+const it = { id:ing.editId || crypto.randomUUID(), d, desc:$('fDesc').value.trim(), amount, cat:$('fCat').value.trim(), p:$('fWho').value };
+$('fSave').disabled = true;
+const ok = await ingOp(() => rpc('ingresos_guardar', { p_codigo:ing.code, p_id:it.id, p_fecha:it.d, p_concepto:it.desc, p_importe:it.amount, p_categoria:it.cat, p_persona:it.p }));
+$('fSave').disabled = false;
+if (ok) { ing.selKey = (ing.gran === 'y' ? d.slice(0, 4) : d.slice(0, 7)); pintarIng(); $('iDlg').close(); }
+else if (ing.estado !== 'ok') $('iDlg').close(); else $('fErr').textContent = ing.msg;
+}
+async function borrarIng() {
+if (!ing.editId || !confirm('¿Eliminar este ingreso? No se puede deshacer.')) return;
+$('fDel').disabled = true;
+const ok = await ingOp(() => rpc('ingresos_borrar', { p_codigo:ing.code, p_id:ing.editId }));
+$('fDel').disabled = false;
+if (ok || ing.estado !== 'ok') $('iDlg').close(); else $('fErr').textContent = ing.msg;
+}
 function setView() {
-const s = sag.view === 'sagunto' && !!DATA.sagunto, h = sag.view === 'hist';
-if (!s && !h) sag.view = 'gastos';
+const s = sag.view === 'sagunto' && !!DATA.sagunto, h = sag.view === 'hist', g = sag.view === 'ing';
+if (!s && !h && !g) sag.view = 'gastos';
 LSset('view', sag.view);
 document.querySelectorAll('#views button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === sag.view));
-document.querySelector('#app > .top').classList.toggle('hidden', s || h);
-document.querySelector('#app > .grid').classList.toggle('hidden', s || h);
+document.querySelector('#app > .top').classList.toggle('hidden', s || h || g);
+document.querySelector('#app > .grid').classList.toggle('hidden', s || h || g);
 $('sag').classList.toggle('hidden', !s);
 $('hist').classList.toggle('hidden', !h);
-if (s) pintarSagunto(); else if (h) pintarHist(); else pintarGrafico();
+$('ing').classList.toggle('hidden', !g);
+if (s) pintarSagunto(); else if (h) pintarHist(); else if (g) { ing.fresh = true; pintarIng(); } else pintarGrafico();
 }
 function pintarSagunto() {
 const hm = hoyStr().slice(0, 7), tot = sag.period === 'total', m = sag.month, esActual = m === hm;
@@ -666,6 +864,20 @@ s.addEventListener('change', () => setSort(s.value));
 });
 $('q').addEventListener('input', () => { state.q = $('q').value; if (state.q.trim()) setTab('list'); pintarLista(delMes(state.month)); });
 $('hq').addEventListener('input', () => { hist.q = $('hq').value; pintarHist(); });
+$('iWho').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.who = b.dataset.p; LSset('who', state.who); ing.selKey = null; ing.fresh = true; pintar(); pintarIng(); });
+$('iGran').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.gran = b.dataset.g; LSset('iGran', ing.gran); ing.selKey = null; ing.fresh = true; pintarIng(); } });
+$('iAdd').onclick = () => abrirIng(null);
+$('iChange').onclick = cambiarCodigo;
+$('iRows').addEventListener('submit', e => { if (e.target.id === 'iCodeForm') enviarCodigo(e); });
+$('iRows').addEventListener('click', e => {
+if (e.target.id === 'iRetry') { ingCargar(true); return; }
+const r = e.target.closest('[data-i]'); if (r && ing.ctx) { ing.selKey = ing.ctx.keys[+r.dataset.i]; pintarIng(); }
+});
+$('iList').addEventListener('click', e => { const r = e.target.closest('[data-id]'); if (r) abrirIng(r.dataset.id); });
+$('iForm').addEventListener('submit', guardarIng);
+$('fCancel').onclick = () => $('iDlg').close();
+$('fDel').onclick = borrarIng;
+let rzi; new ResizeObserver(() => { clearTimeout(rzi); rzi = setTimeout(() => { if (sag.view === 'ing' && ing.estado === 'ok') pintarIng(); }, 80); }).observe($('iRows'));
 $('hClear').onclick = () => { hist.cats.clear(); LSset('hCats', '[]'); pintarHist(); };
 $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTab(b.dataset.t); });
 $('prev').onclick = () => { state.month = months[months.indexOf(state.month) - 1]; pintar(); };
@@ -675,7 +887,7 @@ $('sPeriod').addEventListener('click', e => { const b = e.target.closest('button
 $('sPrev').onclick = () => { sag.month = sag.months[sag.months.indexOf(sag.month) - 1]; pintarSagunto(); };
 $('sNext').onclick = () => { sag.month = sag.months[sag.months.indexOf(sag.month) + 1]; pintarSagunto(); };
 $('reload').onclick = () => location.reload();
-$('logout').onclick = () => { LSset('pw', null); location.reload(); };
+$('logout').onclick = () => { LSset('pw', null); LSset('ingCode', null); location.reload(); };
 const saved = LS('pw');
 if (saved) entrar(saved, true);
 </script>
