@@ -193,6 +193,7 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <section class="sag hidden" id="hist">
 <div class="top">
 <div class="seg" id="hWho" role="group" aria-label="Persona"></div>
+<input id="hq" class="search" type="search" placeholder="Buscar en todo el histórico…" autocomplete="off" aria-label="Buscar movimiento por nombre en todo el histórico">
 <div class="seg" id="hGran" role="group" aria-label="Agrupar por">
 <button data-g="m" aria-pressed="true">Meses</button>
 <button data-g="y" aria-pressed="false">Años</button>
@@ -325,7 +326,7 @@ pintar();
 iniciarHist();
 iniciarSagunto();
 }
-const hist = { gran:LS('hGran') === 'y' ? 'y' : 'm', cats:new Set() };
+const hist = { gran:LS('hGran') === 'y' ? 'y' : 'm', cats:new Set(), q:'' };
 const catOf = t => t.cat || 'Sin categoría';
 function iniciarHist() {
 $('hWho').innerHTML = $('who').innerHTML;
@@ -342,7 +343,8 @@ hist.cats.forEach(c => { if (!(c in totCat)) totCat[c] = 0; });
 const names = Object.keys(totCat).sort((a, b) => totCat[b] - totCat[a]);
 $('hChips').innerHTML = names.map(n => `<button data-c="${esc(n)}" aria-pressed="${hist.cats.has(n)}">${esc(n)}</button>`).join('');
 $('hClear').classList.toggle('hidden', !hist.cats.size);
-const sel = base.filter(t => !hist.cats.size || hist.cats.has(catOf(t)));
+const nq = norm(hist.q);
+const sel = base.filter(t => (!hist.cats.size || hist.cats.has(catOf(t))) && (!nq || norm(t.desc).includes(nq)));
 const key = t => yr ? t.d.slice(0, 4) : ym(t.d);
 const by = {};
 sel.forEach(t => by[key(t)] = (by[key(t)] || 0) + importe(t));
@@ -356,21 +358,21 @@ const vals = keys.map(k => by[k] || 0);
 const total = vals.reduce((s, v) => s + v, 0);
 const lbl = k => yr ? k : monthLabel(k);
 const nombre = !hist.cats.size ? 'Todas las categorías' : [...hist.cats].join(' + ');
-$('hLabel').textContent = nombre + (state.who === 'Total' ? ' · grupo' : ' · ' + state.who);
+$('hLabel').textContent = nombre + (state.who === 'Total' ? ' · grupo' : ' · ' + state.who) + (nq ? ` · «${hist.q.trim()}»` : '');
 $('hHero').textContent = eur.format(total);
 $('hT1L').textContent = yr ? 'Media anual' : 'Media mensual';
 $('hT1').textContent = eur0.format(keys.length ? total / keys.length : 0);
 const mxI = vals.length ? vals.indexOf(Math.max(...vals)) : -1;
 $('hT2').textContent = mxI < 0 ? '—' : eur0.format(vals[mxI]);
 $('hT3').textContent = sel.length;
-$('hTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span><span class="label">${mxI < 0 ? '' : 'máx. ' + esc(lbl(keys[mxI]))}</span>`;
-hist.ctx = { keys, vals, yr, cy, hm, lbl, items:sel, key };
+$('hTitle').innerHTML = `<span>${yr ? 'Por año' : 'Por mes'}</span>${keys.length ? `<span class="legend"><span><i class="a"></i>${yr ? 'media anual' : 'media mensual'} ${eur0.format(total / keys.length)}</span></span>` : ''}`;
+hist.ctx = { keys, vals, yr, cy, hm, lbl, items:sel, key, avg:keys.length ? total / keys.length : 0 };
 hist.sel = keys.length - 1;
 dibujarHist(true);
 }
 const shortMonth = k => { const [y, mo] = k.split('-').map(Number); return new Date(y, mo - 1, 1).toLocaleDateString('es-ES', { month:'short' }).replace('.', '') + ' ' + String(y).slice(2); };
 function dibujarBarras(box, c, selIdx, irAlFinal) {  // gráfica de barras verticales con scroll horizontal
-const { keys, vals, yr, cy, hm } = c;
+const { keys, vals, yr, cy, hm, avg } = c;
 const prevScroll = box.scrollLeft;
 const cw = Math.max(box.clientWidth, 200), H = Math.max(box.clientHeight, 120);
 const step = Math.min(Math.max(yr ? 70 : 44, cw / keys.length), 96), W = Math.max(cw, keys.length * step);
@@ -384,6 +386,7 @@ if (v > 0) g += `<text x="${(i * step + step / 2).toFixed(1)}" y="${(y(v) - 4).t
 g += `<text x="${(i * step + step / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10.5" fill="${i === selIdx ? 'var(--ink)' : 'var(--ink3)'}" ${i === selIdx ? 'font-weight="600"' : ''}>${esc(yr ? k : shortMonth(k))}</text>`;
 g += `<rect data-i="${i}" x="${i * step}" y="0" width="${step}" height="${H}" fill="transparent" style="cursor:pointer"/>`;
 });
+if (avg > 0) g += `<line x1="0" x2="${W}" y1="${y(avg).toFixed(1)}" y2="${y(avg).toFixed(1)}" stroke="var(--s2)" stroke-width="1.8" stroke-dasharray="5 4" pointer-events="none"/>`;
 box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gasto por ${yr ? 'año' : 'mes'}">${g}</svg>`;
 box.scrollLeft = irAlFinal ? box.scrollWidth : prevScroll;
 }
@@ -396,8 +399,11 @@ dibujarBarras(box, c, hist.sel, irAlFinal);
 const i = hist.sel, v = vals[i], cur = yr ? keys[i] === cy : keys[i] === hm;
 const vs = cur ? '<span class="n">en curso</span>' : i > 0 && vals[i - 1] > 0 ? `${chip(v, vals[i - 1])} <span class="n">vs ${yr ? 'año' : 'mes'} anterior</span>` : '';
 $('hDetail').innerHTML = `<b>${esc(lbl(keys[i]))}</b>: <span class="num">${eur.format(v)}</span> ${vs}`;
-const lista = ordenar(c.items.filter(t => c.key(t) === keys[i]));
-$('hList').innerHTML = lista.map(t => `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' })}</b> · ${esc(catOf(t))} · pagó ${esc(t.paid)}${state.who !== 'Total' && t.total !== importe(t) ? ` · total ${eur.format(t.total)}` : ''}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`).join('') || '<div class="empty">Sin gastos</div>';
+const buscando = !!norm(hist.q);
+const lista = ordenar(buscando ? c.items : c.items.filter(t => c.key(t) === keys[i]));
+const fmtF = buscando ? { day:'numeric', month:'short', year:'numeric' } : { day:'numeric', month:'short' };
+const cab = buscando ? `<div class="day" style="margin-top:0">${lista.length} resultado${lista.length === 1 ? '' : 's'} · ${eur0.format(lista.reduce((s, t) => s + importe(t), 0))} · todo el histórico</div>` : '';
+$('hList').innerHTML = cab + lista.map(t => `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', fmtF)}</b> · ${esc(catOf(t))} · pagó ${esc(t.paid)}${state.who !== 'Total' && t.total !== importe(t) ? ` · total ${eur.format(t.total)}` : ''}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`).join('') || '<div class="empty">Sin gastos</div>';
 $('hList').scrollTop = 0;
 }
 const sag = { view:LS('view') || 'gastos', period:LS('sagPeriod') || 'mes', gran:LS('sGran') === 'y' ? 'y' : 'm', ysel:null, fresh:true, month:null, months:[], items:[] };
@@ -654,6 +660,7 @@ s.value = sortMode;
 s.addEventListener('change', () => setSort(s.value));
 });
 $('q').addEventListener('input', () => { state.q = $('q').value; if (state.q.trim()) setTab('list'); pintarLista(delMes(state.month)); });
+$('hq').addEventListener('input', () => { hist.q = $('hq').value; pintarHist(); });
 $('hClear').onclick = () => { hist.cats.clear(); LSset('hCats', '[]'); pintarHist(); };
 $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTab(b.dataset.t); });
 $('prev').onclick = () => { state.month = months[months.indexOf(state.month) - 1]; pintar(); };
