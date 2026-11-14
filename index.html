@@ -118,6 +118,8 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 #ing .row { cursor:pointer; }
 .m.pos, .pos { color:var(--good); } .neg { color:var(--bad); }
 dialog { background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:16px; padding:16px; width:min(92vw,380px); }
+dialog { max-height:92vh; overflow:auto; }
+.vSec { font-size:12px; font-weight:600; color:var(--ink2); text-transform:uppercase; letter-spacing:.04em; margin:12px 0 6px; border-top:1px solid var(--line); padding-top:10px; }
 dialog::backdrop { background:rgba(0,0,0,.55); }
 dialog label { display:block; font-size:12.5px; color:var(--ink2); margin-bottom:10px; }
 dialog input, dialog select { display:block; width:100%; margin-top:3px; font:inherit; font-size:16px; padding:10px; border-radius:10px; border:1px solid var(--line); background:var(--surface); color:var(--ink); }
@@ -222,7 +224,6 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <button data-g="y" aria-pressed="false">Años</button>
 </div>
 <button class="btn sm" id="iAdd" type="button">+ Añadir ingreso</button>
-<button class="btn sm hidden" id="iVal" type="button" title="Indica el valor actual de un fondo y estimo su evolución con tus aportaciones">Valor de un fondo</button>
 <button class="btn2 hidden" id="iChange" type="button" title="Cambiar el código de acceso a los ingresos">Cambiar código</button>
 </div>
 <div id="iMsg" class="card hidden" style="flex:none;color:var(--bad);font-size:13px"></div>
@@ -257,15 +258,23 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 </section>
 <dialog id="vDlg">
 <form id="vForm" autocomplete="off">
-<h3 style="margin:0 0 10px;font-size:17px">Valor de un fondo</h3>
-<label>Fondo (igual que la categoría de tus aportaciones)<input id="vFondo" type="text" list="vFondos" maxlength="30" required placeholder="Mi fondo indexado"><datalist id="vFondos"></datalist></label>
+<h3 id="vTitulo" style="margin:0 0 10px;font-size:17px">Nuevo fondo</h3>
+<label>Nombre del fondo<input id="vNombre" type="text" maxlength="40" required placeholder="Mi fondo indexado"></label>
 <label>ISIN, para buscar los precios (opcional)<input id="vIsin" type="text" maxlength="12" autocapitalize="characters" placeholder="IE00B03HD191" style="text-transform:uppercase"></label>
-<label>Fecha de esta valoración<input type="date" id="vFecha" required></label>
-<label>Valor del fondo en esa fecha (€)<input type="number" id="vImp" step="0.01" min="0.01" inputmode="decimal" required></label>
-<label>Rentabilidad anual a suponer (%, opcional: si no, uso la media histórica)<input type="number" id="vRent" step="0.1" min="-100" max="100" inputmode="decimal" placeholder="media histórica"></label>
+<div class="vSec">Lo que aportas</div>
+<label>Importe de cada aportación (€)<input type="number" id="vAporte" step="0.01" min="0.01" inputmode="decimal" placeholder="50"></label>
+<label>Frecuencia<select id="vPer"><option value="mensual">Cada mes</option><option value="trimestral">Cada 3 meses</option><option value="semestral">Cada 6 meses</option><option value="anual">Cada año</option></select></label>
+<label>Fecha de la primera aportación<input type="date" id="vDesde"></label>
+<label>Hasta (opcional: si no, sigue activa)<input type="date" id="vHasta"></label>
+<div class="vSec">Cómo va ahora (opcional)</div>
+<label>Total aportado hasta esa fecha (€)<input type="number" id="vAportado" step="0.01" min="0" inputmode="decimal" placeholder="540"></label>
+<label>Valor del fondo en esa fecha (€)<input type="number" id="vValor" step="0.01" min="0.01" inputmode="decimal" placeholder="580"></label>
+<label>Fecha de ese valor<input type="date" id="vFecha"></label>
+<div id="vNota" style="font-size:12px;color:var(--ink3);margin:-4px 0 8px"></div>
+<label>Rentabilidad anual a suponer (%, opcional; si no, la media histórica)<input type="number" id="vRent" step="0.1" min="-100" max="100" inputmode="decimal" placeholder="media histórica"></label>
 <div id="vErr" role="alert" style="color:var(--bad);min-height:1.2em;font-size:13px;margin-bottom:6px"></div>
 <div class="dlgBtns">
-<button type="button" id="vDel" class="btn2 danger hidden">Quitar esta valoración</button>
+<button type="button" id="vDel" class="btn2 danger hidden">Eliminar</button>
 <span style="flex:1"></span>
 <button type="button" id="vCancel" class="btn2">Cancelar</button>
 <button type="submit" class="btn sm" id="vSave">Guardar</button>
@@ -546,12 +555,12 @@ setView();
 }
 /* ---------- Resumen e Inversión: filas en Supabase, protegidas con un código de acceso propio ---------- */
 const SB = { url:'https://gzewqeoqsgoljzuglwpc.supabase.co', key:'sb_publishable_d2gsiwOPJwDyoKoIjgKIvA_WbVyoBJf' };
-const ing = { items:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:LS('iSub') === 'fondos' ? 'fondos' : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null };
+const ing = { items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:LS('iSub') === 'fondos' ? 'fondos' : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null };
 const modoIng = () => sag.view === 'inv' ? 'inversion' : 'ingreso';  // la pestaña Resumen gestiona ingresos; Inversión, inversiones
 const CATS_ING = { ingreso:['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'],
 inversion:['Fondo indexado', 'Acciones', 'Criptomonedas', 'Plan de pensiones', 'Depósito', 'Otros'] };
 const TXT_ING = { ingreso:{ add:'+ Añadir ingreso', nuevo:'Añadir ingreso', editar:'Editar ingreso', lista:'Ingresos del periodo', vacio:'Aún no hay ingresos. Pulsa «+ Añadir ingreso».', ph:'Nómina de noviembre', cat:'Nómina' },
-inversion:{ add:'+ Añadir inversión', nuevo:'Añadir inversión', editar:'Editar inversión', lista:'Inversiones del periodo', vacio:'Aún no hay inversiones. Pulsa «+ Añadir inversión» (puede ser periódica).', ph:'Aportación mensual', cat:'Fondo indexado' } };
+inversion:{ add:'+ Nuevo fondo', nuevo:'Añadir inversión', editar:'Editar inversión', lista:'Aportaciones del periodo', vacio:'Aún no hay aportaciones. Pulsa «+ Nuevo fondo».', ph:'Aportación mensual', cat:'Fondo indexado' } };
 async function rpc(fn, args) {
 const r = await fetch(SB.url + '/rest/v1/rpc/' + fn, { method:'POST', headers:{ apikey:SB.key, 'Content-Type':'application/json' }, body:JSON.stringify(args || {}) });
 const j = await r.json().catch(() => null);
@@ -559,7 +568,9 @@ if (!r.ok) throw new Error((j && j.message) || 'Error ' + r.status);
 return j;
 }
 async function ingListar() {
-const rows = await rpc('ingresos_listar', { p_codigo:ing.code });
+const [rows, fon] = await Promise.all([rpc('ingresos_listar', { p_codigo:ing.code }), rpc('fondos_listar', { p_codigo:ing.code })]);
+ing.fondos = fon.map(f => ({ id:f.id, nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
+baseFecha:f.base_fecha, baseAportado:f.base_aportado == null ? null : Number(f.base_aportado), baseValor:f.base_valor == null ? null : Number(f.base_valor), rent:f.rent_anual == null ? null : Number(f.rent_anual), persona:f.persona }));
 ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso', per:r.periodicidad || 'unica', fin:r.fecha_fin || null, rent:r.rent_anual == null ? null : Number(r.rent_anual) }));
 }
 function ingCodigoMal() {
@@ -626,14 +637,16 @@ out.push({ ...t, d:f, rec:true });
 }
 return out;
 }
-// ---------- Fondos: valor de partida + precios reales (Yahoo, vía función de Supabase) + proyección ----------
-// El usuario indica una vez el valor del fondo en una fecha (fila 'valor', ISIN en 'concepto'). Con el histórico de precios se
-// calculan las participaciones de partida (valor / precio de esa fecha) y las de cada aportación posterior (importe / precio de su día);
-// el valor de cualquier día es participaciones × precio. La proyección mantiene la rentabilidad media anual y las aportaciones.
+// ---------- Fondos: un fondo = ISIN + aportación periódica + (opcional) situación conocida; precios reales y proyección ----------
+// Cada fondo guarda: su aportación periódica (importe, frecuencia, desde/hasta) y, si se conoce, lo aportado y el valor en una fecha.
+// Con el histórico de precios (Yahoo, vía función de Supabase) se calculan las participaciones de partida (valor / precio de esa fecha) y las
+// de cada aportación posterior (importe / precio de su día); el valor de cualquier día es participaciones × precio. Sin situación conocida,
+// se reconstruye todo desde la primera aportación. La proyección mantiene la rentabilidad media anual y las aportaciones.
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
 const precios = {};   // ISIN -> { estado:'cargando'|'ok'|'error', serie:[[fecha, precio]], ticker, nombre, moneda, msg }
 const uUTC = s => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
 const diasEntre = (a, b) => (uUTC(b) - uUTC(a)) / 864e5;
+const sumarDias = (d, n) => new Date(uUTC(d) + n * 864e5).toISOString().slice(0, 10);
 function sumarMeses(d, n) {
 const [y, m, dd] = d.split('-').map(Number), idx = (m - 1) + n, yy = y + Math.floor(idx / 12), mm = ((idx % 12) + 12) % 12;
 return yy + '-' + String(mm + 1).padStart(2, '0') + '-' + String(Math.min(dd, new Date(yy, mm + 1, 0).getDate())).padStart(2, '0');
@@ -653,27 +666,31 @@ fetch(SB.url + '/functions/v1/precios-fondo', { method:'POST', headers:{ apikey:
 .catch(e => { precios[isin] = { estado:'error', msg:e.message }; })
 .finally(() => { if (ing.estado === 'ok') pintarIng(); });
 }
+// Aportaciones periódicas de los fondos (desde la primera hasta la fecha dada), con el mismo formato que las aportaciones sueltas.
+function aportesFondos(hasta) {
+return ing.fondos.filter(f => f.aporte && f.desde).flatMap(f => ocurrencias({ id:f.id, fondoId:f.id, tipo:'inversion', d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta, cat:f.nombre, desc:f.nombre, p:f.persona || miembroFan() || 'Fan' }, hasta));
+}
 function modeloFondos(anios) {
 const hoy = hoyStr(), tope = sumarMeses(hoy, anios * 12);
-const aportes = ing.items.filter(t => t.tipo === 'inversion').flatMap(t => ocurrencias(t, tope));
-const ultimo = {};
-ing.items.filter(t => t.tipo === 'valor').forEach(v => { const k = norm(v.cat); if (!ultimo[k] || v.d > ultimo[k].d) ultimo[k] = v; });  // la lista llega de más nueva a más antigua
-return Object.values(ultimo).map(v => {
-const k = norm(v.cat), isin = ISIN_RE.test((v.desc || '').toUpperCase()) ? v.desc.toUpperCase() : '';
-const px = isin && precios[isin] && precios[isin].estado === 'ok' ? precios[isin] : null;
-const F = { id:v.id, nombre:v.cat, isin, d0:v.d, v0:v.amount, rManual:(v.rent || 0) / 100, rOver:v.rent == null ? null : v.rent / 100, px,
+return ing.fondos.map(f => {
+const isin = f.isin, px = isin && precios[isin] && precios[isin].estado === 'ok' ? precios[isin] : null;
+const plan = f.aporte && f.desde ? ocurrencias({ d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta }, tope) : [];
+const anclado = f.baseValor != null && !!f.baseFecha;
+const d0 = anclado ? f.baseFecha : sumarDias(f.desde, -1), v0 = anclado ? f.baseValor : 0;
+const aport0 = !anclado ? 0 : f.baseAportado != null ? f.baseAportado : plan.filter(t => t.d <= d0).reduce((s, t) => s + t.amount, 0);
+const F = { id:f.id, nombre:f.nombre, isin, f, d0, v0, aport0, anclado, rManual:(f.rent || 0) / 100, rOver:f.rent == null ? null : f.rent / 100, px,
 pxEstado:isin ? (precios[isin] ? precios[isin].estado : 'pendiente') : 'sin', pxMsg:isin && precios[isin] ? precios[isin].msg : '',
-ap:aportes.filter(t => norm(t.cat) === k && t.d > v.d).map(t => ({ d:t.d, a:t.amount })).sort((a, b) => a.d < b.d ? -1 : 1) };
+ap:plan.filter(t => t.d > d0).map(t => ({ d:t.d, a:t.amount })) };
 if (px) {
 const s = px.serie, last = s[s.length - 1], lim = sumarMeses(last[0], -60);
 let i0 = 0; while (i0 < s.length - 1 && s[i0][0] < lim) i0++;
 const dd = diasEntre(s[i0][0], last[0]);
-F.u0 = v.amount / navEn(s, v.d); F.navHoy = last[1]; F.fechaNav = last[0];
+F.u0 = v0 > 0 ? v0 / navEn(s, d0) : 0; F.navHoy = last[1]; F.fechaNav = last[0];
 F.rMedia = dd >= 90 ? Math.pow(last[1] / s[i0][1], 365 / dd) - 1 : 0; F.anios = dd / 365;
 }
 F.r = F.rOver != null ? F.rOver : (px ? F.rMedia : F.rManual);
 F.rFuente = F.rOver != null ? 'supuesta por ti' : px ? 'media de los últimos ' + Math.min(5, F.anios).toLocaleString('es-ES', { maximumFractionDigits:1 }) + ' años' : F.rManual ? 'supuesta por ti' : 'sin crecimiento';
-F.cont = d => d < F.d0 ? 0 : F.v0 + F.ap.filter(x => x.d <= d).reduce((s, x) => s + x.a, 0);   // aportado: valor inicial + aportaciones
+F.cont = d => d < F.d0 ? 0 : F.aport0 + F.ap.filter(x => x.d <= d).reduce((s, x) => s + x.a, 0);   // aportado: lo ya aportado + aportaciones posteriores
 F.valor = d => {
 if (d < F.d0) return 0;
 const hasta = F.ap.filter(x => x.d <= d);
@@ -702,7 +719,7 @@ v = v * g + aps; c += aps; V[i] += v; C[i] += c;
 return { G, iHoy, V, C, B:V.map((v, i) => v - C[i]) };
 }
 function pintarFondos() {
-ing.items.filter(t => t.tipo === 'valor').forEach(v => { const isin = (v.desc || '').toUpperCase(); if (ISIN_RE.test(isin)) cargarPrecios(isin); });
+ing.fondos.forEach(f => { if (f.isin) cargarPrecios(f.isin); });
 const fs = modeloFondos(+ing.horizonte);
 const corta = d => new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' });
 const pc = x => x.toLocaleString('es-ES', { maximumFractionDigits:1 });
@@ -711,17 +728,20 @@ $('iFondosL').innerHTML = fs.length ? fs.map(f => {
 const precio = !f.isin ? 'sin ISIN: estimación manual' : f.px ? `VL ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:2 })} € (${corta(f.fechaNav)})`
 : f.pxEstado === 'error' ? `sin precios (${esc(f.pxMsg || 'error')}) · <a href="#" data-retry="${esc(f.isin)}" style="color:var(--s1)">reintentar</a>` : 'buscando precios…';
 const pct = f.aportado > 0 ? ' (' + (f.gan >= 0 ? '+' : '') + pc(f.gan / f.aportado * 100) + ' %)' : '';
+const plan = f.f.aporte ? `Aportas ${eur0.format(f.f.aporte)} ${NOMBRE_PER[f.f.per]} desde ${corta(f.f.desde)}${f.f.hasta ? ' hasta ' + corta(f.f.hasta) : ''}` : 'sin aportación periódica';
+const base = f.anclado ? `Partes de ${eur0.format(f.v0)} (aportado ${eur0.format(f.aport0)}) el ${corta(f.d0)}` : 'Reconstruido desde la primera aportación';
 return `<div class="row" data-fondo="${esc(f.nombre)}" style="cursor:pointer;${ing.fondoSel === norm(f.nombre) ? 'background:var(--grid);border-radius:8px;padding-left:6px;padding-right:6px' : ''}"><div>
-<div class="d">${esc(f.nombre)} <button class="btn2" data-edit="${esc(f.nombre)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">Actualizar</button></div>
+<div class="d">${esc(f.nombre)} <button class="btn2" data-edit="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">Editar</button></div>
 <div class="c">${f.isin ? esc(f.isin) + ' · ' : ''}${precio}</div>
+<div class="c">${plan} · ${base}</div>
 <div class="c">Aportado ${eur0.format(f.aportado)} · beneficio <span class="${f.gan >= 0 ? 'pos' : 'neg'}">${f.gan >= 0 ? '+' : ''}${eur0.format(f.gan)}${pct}</span> · rentab. ${pc(f.r * 100)} %/año (${f.rFuente})</div>
 </div><div class="m num">${eur.format(f.hoy)}</div></div>`;
-}).join('') : '<div class="empty" style="padding:8px 0;font-size:13px">Pulsa «Valor de un fondo», indica su ISIN, la fecha y cuánto valía. A partir de ahí busco los precios, estimo su valor de hoy y proyecto su evolución con tus aportaciones (la categoría de la aportación debe llamarse como el fondo).</div>';
+}).join('') : '<div class="empty" style="padding:8px 0;font-size:13px">Pulsa «+ Nuevo fondo» e indica su ISIN, cuánto aportas cada mes y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Busco los precios, estimo su valor de hoy y proyecto su evolución.</div>';
 }
 function pintarProy() {
 const fs = modeloFondos(+ing.horizonte), sel = ing.fondoSel ? fs.filter(f => norm(f.nombre) === ing.fondoSel) : fs, box = $('iProyBox');
 $('iHor').value = ing.horizonte;
-if (!sel.length) { box.innerHTML = '<div class="empty">Añade un fondo con «Valor de un fondo» para ver la evolución y la proyección.</div>'; $('iProyRes').innerHTML = ''; return; }
+if (!sel.length) { box.innerHTML = '<div class="empty">Añade un fondo para ver la evolución y la proyección.</div>'; $('iProyRes').innerHTML = ''; return; }
 const S = serieFondos(sel, +ing.horizonte), n = S.V.length - 1, h = S.iHoy, tot = sel.reduce((s, f) => s + f.hoy, 0);
 const rPond = tot > 0 ? sel.reduce((s, f) => s + f.r * f.hoy, 0) / tot : 0;
 $('iProyRes').innerHTML = `Hoy <b>${eur0.format(S.V[h])}</b> (beneficio <span class="${S.B[h] >= 0 ? 'pos' : 'neg'}">${eur0.format(S.B[h])}</span>) · en ${ing.horizonte} años ≈ <b>${eur0.format(S.V[n])}</b>: aportado ${eur0.format(S.C[n])}, beneficio <span class="pos">${eur0.format(S.B[n])}</span> · con ${(rPond * 100).toLocaleString('es-ES', { maximumFractionDigits:1 })} %/año`;
@@ -756,30 +776,46 @@ tip.style.left = Math.min(Math.max(x(i) / W * r.width - 50, 0), r.width - 130) +
 svg.addEventListener('pointermove', mover); svg.addEventListener('pointerdown', mover);
 svg.addEventListener('pointerleave', () => { $('pCross').classList.add('hidden'); tip.classList.add('hidden'); });
 }
-function abrirVal(nombre) {
-const previo = nombre ? modeloFondos(1).find(f => norm(f.nombre) === norm(nombre)) : null;
-$('vFondo').value = nombre || ''; $('vIsin').value = previo ? previo.isin : ''; $('vFecha').value = hoyStr(); $('vImp').value = '';
-$('vRent').value = previo && previo.rOver != null ? previo.rOver * 100 : '';
-$('vFondos').innerHTML = [...new Set(ing.items.filter(t => t.tipo === 'valor' || t.tipo === 'inversion').map(t => t.cat).filter(Boolean))].map(c => `<option value="${esc(c)}">`).join('');
-$('vDel').classList.toggle('hidden', !previo); ing.valId = previo ? previo.id : null;
+function abrirFondo(id) {
+const f = id ? ing.fondos.find(x => x.id === id) : null;
+ing.fondoId = f ? f.id : null;
+$('vTitulo').textContent = f ? 'Editar fondo' : 'Nuevo fondo';
+$('vNombre').value = f ? f.nombre : ''; $('vIsin').value = f ? f.isin : '';
+$('vAporte').value = f && f.aporte ? f.aporte : ''; $('vPer').value = f ? f.per : 'mensual';
+$('vDesde').value = f && f.desde ? f.desde : ''; $('vHasta').value = f && f.hasta ? f.hasta : '';
+$('vAportado').value = f && f.baseAportado != null ? f.baseAportado : ''; $('vValor').value = f && f.baseValor != null ? f.baseValor : '';
+$('vFecha').value = f && f.baseFecha ? f.baseFecha : hoyStr();
+$('vRent').value = f && f.rent != null ? f.rent : '';
+$('vDel').classList.toggle('hidden', !f);
+$('vNota').textContent = f ? 'Para actualizar el valor: pon la fecha de hoy, lo aportado hasta hoy y lo que vale ahora.' : '';
 $('vErr').textContent = '';
 $('vDlg').showModal();
 }
-async function guardarVal(e) {
+async function guardarFondo(e) {
 e.preventDefault();
-const fondo = $('vFondo').value.trim(), d = $('vFecha').value, valor = Math.round(parseFloat($('vImp').value) * 100) / 100, isin = $('vIsin').value.trim().toUpperCase();
-const rent = $('vRent').value === '' ? null : Math.round(parseFloat($('vRent').value) * 100) / 100;
-if (!fondo || !d || !(valor > 0)) { $('vErr').textContent = 'Indica el fondo, la fecha y un valor mayor que 0.'; return; }
-if (isin && !ISIN_RE.test(isin)) { $('vErr').textContent = 'El ISIN debe tener 12 caracteres (por ejemplo, IE00B03HD191).'; return; }
-if (rent !== null && (isNaN(rent) || rent < -100 || rent > 100)) { $('vErr').textContent = 'La rentabilidad debe estar entre -100 y 100.'; return; }
+const num = id => $(id).value === '' ? null : Math.round(parseFloat($(id).value) * 100) / 100;
+const nombre = $('vNombre').value.trim(), isin = $('vIsin').value.trim().toUpperCase(), aporte = num('vAporte'), desde = $('vDesde').value || null, hasta = $('vHasta').value || null;
+const valor = num('vValor'), aportado = num('vAportado'), fecha = $('vFecha').value || null, rent = num('vRent');
+const err = m => { $('vErr').textContent = m; };
+if (!nombre) return err('Pon un nombre al fondo.');
+if (isin && !ISIN_RE.test(isin)) return err('El ISIN debe tener 12 caracteres (por ejemplo, IE00B03HD191).');
+if (aporte !== null && !(aporte > 0)) return err('La aportación debe ser mayor que 0.');
+if (aporte !== null && !desde) return err('Indica la fecha de la primera aportación.');
+if (hasta && desde && hasta < desde) return err('La fecha final no puede ser anterior al inicio.');
+if (valor !== null && !(valor > 0)) return err('El valor actual debe ser mayor que 0.');
+if (valor !== null && !fecha) return err('Indica la fecha de ese valor.');
+if (aportado !== null && aportado < 0) return err('Lo aportado no puede ser negativo.');
+if (aporte === null && valor === null) return err('Indica una aportación periódica o el valor actual del fondo.');
+if (rent !== null && (rent < -100 || rent > 100)) return err('La rentabilidad debe estar entre -100 y 100.');
 $('vSave').disabled = true;
-const ok = await ingOp(() => rpc('ingresos_guardar', { p_codigo:ing.code, p_id:crypto.randomUUID(), p_fecha:d, p_concepto:isin, p_importe:valor, p_categoria:fondo, p_persona:miembroFan() || 'Fan', p_tipo:'valor', p_periodicidad:'unica', p_fecha_fin:null, p_rent_anual:rent }));
+const ok = await ingOp(() => rpc('fondos_guardar', { p_codigo:ing.code, p_id:ing.fondoId || crypto.randomUUID(), p_nombre:nombre, p_isin:isin, p_aporte:aporte, p_periodicidad:$('vPer').value, p_aporte_desde:aporte === null ? null : desde, p_aporte_hasta:aporte === null ? null : hasta,
+p_base_fecha:valor === null ? null : fecha, p_base_aportado:valor === null ? null : aportado, p_base_valor:valor, p_rent_anual:rent, p_persona:miembroFan() || 'Fan' }));
 $('vSave').disabled = false;
 if (ok || ing.estado !== 'ok') { $('vDlg').close(); if (ok && isin) cargarPrecios(isin, true); } else $('vErr').textContent = ing.msg;
 }
-async function quitarVal() {
-if (!ing.valId || !confirm('¿Quitar la última valoración de este fondo? Se volverá a usar la anterior, si la hay.')) return;
-const ok = await ingOp(() => rpc('ingresos_borrar', { p_codigo:ing.code, p_id:ing.valId }));
+async function borrarFondo() {
+if (!ing.fondoId || !confirm('¿Eliminar este fondo y sus aportaciones periódicas? No se puede deshacer.')) return;
+const ok = await ingOp(() => rpc('fondos_borrar', { p_codigo:ing.code, p_id:ing.fondoId }));
 if (ok || ing.estado !== 'ok') $('vDlg').close(); else $('vErr').textContent = ing.msg;
 }
 function pintarIng() {
@@ -794,7 +830,6 @@ $('iListT').textContent = X.lista;
 const modoFondos = !res && ing.sub === 'fondos' && ing.estado === 'ok';
 $('iSub').classList.toggle('hidden', res || ing.estado !== 'ok');
 document.querySelectorAll('#iSub button').forEach(b => b.setAttribute('aria-pressed', b.dataset.s === ing.sub));
-$('iVal').classList.toggle('hidden', !modoFondos);
 ['iFondos', 'iProy'].forEach(i => $(i).classList.toggle('hidden', !modoFondos));
 document.querySelector('#ing > .hero').classList.toggle('hidden', modoFondos);
 document.querySelector('#ing > .sagRow').classList.toggle('hidden', modoFondos);
@@ -811,7 +846,7 @@ $('iList').innerHTML = ''; $('iHero').textContent = '—'; $('iLabel').textConte
 return;
 }
 $('iWho').classList.toggle('hidden', !res);   // las inversiones son siempre de Fan: sin selector de persona
-const todos = ing.items.flatMap(t => ocurrencias(t, hoyStr()));
+const todos = [...ing.items.flatMap(t => ocurrencias(t, hoyStr())), ...aportesFondos(hoyStr())];
 if (modoFondos) { pintarFondos(); pintarProy(); return; }
 const quien = t => state.who === 'Total' || t.p === state.who;
 const its = res ? todos.filter(t => t.tipo === 'ingreso' && quien(t)) : todos.filter(t => t.tipo === 'inversion');
@@ -854,7 +889,7 @@ $('iDetail').innerHTML = its.length ? `<b>${esc(lbl)}</b>: ${nIng.length} ${res 
 $('iCount').textContent = nIng.length ? nIng.length + ' mov.' : '';
 ing.ctx = { keys, vals, yr, cy, hm, color:res ? 'var(--good)' : 'var(--s1)', lines:res ? [{ vals:gas, color:'var(--s2)' }, ...(vistaFan() ? [{ vals:inv, color:'var(--s1)' }] : [])] : [], i };
 dibujarBarras($('iRows'), ing.ctx, i, ing.fresh); ing.fresh = false;
-$('iList').innerHTML = [...nIng].sort((a, b) => b.d.localeCompare(a.d)).map(t => `<div class="row" data-id="${esc(t.id)}"><div><div class="d">${esc(t.desc || t.cat || (res ? 'Ingreso' : 'Inversión'))}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' })}</b> · ${esc(t.cat || 'Sin categoría')} · ${esc(t.p)}${t.rec ? ' · ↻ ' + NOMBRE_PER[t.per] : ''}</div></div><div class="m num ${res ? 'pos' : ''}">${eur.format(t.amount)}</div></div>`).join('') || `<div class="empty">Sin ${res ? 'ingresos' : 'inversiones'} en este periodo</div>`;
+$('iList').innerHTML = [...nIng].sort((a, b) => b.d.localeCompare(a.d)).map(t => `<div class="row" data-id="${esc(t.id)}"${t.fondoId ? ' data-fid="1"' : ''}><div><div class="d">${esc(t.desc || t.cat || (res ? 'Ingreso' : 'Inversión'))}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' })}</b> · ${esc(t.cat || 'Sin categoría')} · ${esc(t.p)}${t.rec ? ' · ↻ ' + NOMBRE_PER[t.per] : ''}</div></div><div class="m num ${res ? 'pos' : ''}">${eur.format(t.amount)}</div></div>`).join('') || `<div class="empty">Sin ${res ? 'ingresos' : 'inversiones'} en este periodo</div>`;
 }
 function abrirIng(id) {
 const t = id ? ing.items.find(x => x.id === id) : null, m = t ? t.tipo : modoIng(), X = TXT_ING[m];
@@ -1126,28 +1161,27 @@ $('q').addEventListener('input', () => { state.q = $('q').value; if (state.q.tri
 $('hq').addEventListener('input', () => { hist.q = $('hq').value; pintarHist(); });
 $('iWho').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.who = b.dataset.p; LSset('who', state.who); ing.selKey = null; ing.fresh = true; pintar(); pintarIng(); });
 $('iGran').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.gran = b.dataset.g; LSset('iGran', ing.gran); ing.selKey = null; ing.fresh = true; pintarIng(); } });
-$('iAdd').onclick = () => abrirIng(null);
+$('iAdd').onclick = () => modoIng() === 'inversion' ? abrirFondo(null) : abrirIng(null);
 $('iChange').onclick = cambiarCodigo;
 $('iRows').addEventListener('submit', e => { if (e.target.id === 'iCodeForm') enviarCodigo(e); });
 $('iRows').addEventListener('click', e => {
 if (e.target.id === 'iRetry') { ingCargar(true); return; }
 const r = e.target.closest('[data-i]'); if (r && ing.ctx) { ing.selKey = ing.ctx.keys[+r.dataset.i]; pintarIng(); }
 });
-$('iList').addEventListener('click', e => { const r = e.target.closest('[data-id]'); if (r) abrirIng(r.dataset.id); });
+$('iList').addEventListener('click', e => { const r = e.target.closest('[data-id]'); if (r) { if (r.dataset.fid) abrirFondo(r.dataset.id); else abrirIng(r.dataset.id); } });
 $('iForm').addEventListener('submit', guardarIng);
 $('fCancel').onclick = () => $('iDlg').close();
-$('iVal').onclick = () => abrirVal('');
 $('iFondosL').addEventListener('click', e => {
 const re = e.target.closest('[data-retry]'); if (re) { e.preventDefault(); cargarPrecios(re.dataset.retry, true); pintarIng(); return; }
-const ed = e.target.closest('[data-edit]'); if (ed) { abrirVal(ed.dataset.edit); return; }
+const ed = e.target.closest('[data-edit]'); if (ed) { abrirFondo(ed.dataset.edit); return; }
 const r = e.target.closest('[data-fondo]'); if (r) { const k = norm(r.dataset.fondo); ing.fondoSel = ing.fondoSel === k ? null : k; pintarIng(); }  // tocar un fondo = ver solo ese en la gráfica; otra vez = todos
 });
 $('iSub').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.sub = b.dataset.s; LSset('iSub', ing.sub); ing.fondoSel = null; pintarIng(); } });
 $('iHor').addEventListener('change', () => { ing.horizonte = $('iHor').value; LSset('iHor', ing.horizonte); pintarIng(); });
 let rzp; new ResizeObserver(() => { clearTimeout(rzp); rzp = setTimeout(() => { if (sag.view === 'inv' && ing.estado === 'ok' && ing.sub === 'fondos') pintarProy(); }, 80); }).observe($('iProyBox'));
-$('vForm').addEventListener('submit', guardarVal);
+$('vForm').addEventListener('submit', guardarFondo);
 $('vCancel').onclick = () => $('vDlg').close();
-$('vDel').onclick = quitarVal;
+$('vDel').onclick = borrarFondo;
 $('fPer').addEventListener('change', () => $('fFinL').classList.toggle('hidden', $('fPer').value === 'unica'));
 $('fDel').onclick = borrarIng;
 let rzi; new ResizeObserver(() => { clearTimeout(rzi); rzi = setTimeout(() => { if ((sag.view === 'ing' || sag.view === 'inv') && ing.estado === 'ok') pintarIng(); }, 80); }).observe($('iRows'));
