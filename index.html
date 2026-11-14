@@ -113,6 +113,7 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .btn2 { padding:8px 14px; font-size:14px; border-radius:12px; border:1px solid var(--line); background:none; color:var(--ink); }
 .btn2.danger { color:var(--bad); }
 #ing .top { flex-wrap:wrap; }
+#iSub { flex:1 1 100%; } #iSub button { flex:1; padding:6px 4px; font-size:12.5px; white-space:nowrap; }
 #ing .tiles { grid-template-columns:repeat(4, 1fr); }
 #iTitle { align-items:flex-start; } #iTitle > span:first-child { white-space:nowrap; } #iTitle .legend { justify-content:flex-end; }
 #ing .tile .label { font-size:11.5px; }
@@ -239,7 +240,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <div class="top">
 <div class="seg" id="iWho" role="group" aria-label="Persona"></div>
 <div class="month hidden" id="iYear"><button id="iPrevY" type="button" aria-label="Año anterior">‹</button><strong id="iYearL" style="min-width:56px"></strong><button id="iNextY" type="button" aria-label="Año siguiente">›</button></div>
-<div class="seg hidden" id="iSub" role="group" aria-label="Vista de inversión"><button data-s="aport" aria-pressed="true">Aportaciones</button><button data-s="fondos" aria-pressed="false">Fondos</button></div>
+<div class="seg hidden" id="iSub" role="group" aria-label="Vista de inversión"><button data-s="aport" aria-pressed="true">Aportaciones</button><button data-s="fondos" aria-pressed="false">Fondos</button><button data-s="planes" aria-pressed="false">Plan de pensiones</button><button data-s="resumen" aria-pressed="false">Resumen</button></div>
 <div class="seg" id="iGran" role="group" aria-label="Agrupar por">
 <button data-g="m" aria-pressed="true">Meses</button>
 <button data-g="y" aria-pressed="false">Años</button>
@@ -259,7 +260,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 </div>
 </section>
 <section class="card hidden" id="iFondos" style="flex:none;max-height:36%;overflow:auto">
-<h2><span>Fondos · valor estimado hoy</span><span class="label" id="iFondosNota"></span></h2>
+<h2><span id="iFondosT">Fondos · valor estimado hoy</span><span class="label" id="iFondosNota"></span></h2>
 <div id="iFondosL"></div>
 </section>
 <section class="card hidden" id="iProy" style="flex:1;min-height:170px">
@@ -596,7 +597,7 @@ setView();
 }
 /* ---------- Resumen e Inversión: filas en Supabase, protegidas con un código de acceso propio ---------- */
 const SB = { url:'https://gzewqeoqsgoljzuglwpc.supabase.co', key:'sb_publishable_d2gsiwOPJwDyoKoIjgKIvA_WbVyoBJf' };
-const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:LS('iSub') === 'fondos' ? 'fondos' : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null };
+const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null };
 const TOPE_RESUMEN = 5000;   // máximo visible en la gráfica mes a mes del Resumen (€)
 const modoIng = () => sag.view === 'inv' ? 'inversion' : 'ingreso';  // la pestaña Resumen gestiona ingresos; Inversión, inversiones
 const CATS_ING = { ingreso:['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'],
@@ -611,7 +612,7 @@ return j;
 }
 async function ingListar() {
 const [rows, fon] = await Promise.all([rpc('ingresos_listar', { p_codigo:ing.code }), rpc('fondos_listar', { p_codigo:ing.code })]);
-ing.fondos = fon.map(f => ({ id:f.id, nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
+ing.fondos = fon.map(f => ({ id:f.id, clase:f.clase || 'fondo', nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
 inicial:f.inicial == null ? null : Number(f.inicial), inicialFecha:f.inicial_fecha, baseFecha:f.base_fecha, baseAportado:f.base_aportado == null ? null : Number(f.base_aportado), baseValor:f.base_valor == null ? null : Number(f.base_valor), rent:f.rent_anual == null ? null : Number(f.rent_anual), persona:f.persona }));
 ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso', per:r.periodicidad || 'unica', fin:r.fecha_fin || null, rent:r.rent_anual == null ? null : Number(r.rent_anual), fondoId:r.fondo_id || null }));
 ing.items.forEach(t => { if (t.fondoId) { t.extra = true; const f = ing.fondos.find(x => x.id === t.fondoId); if (f) t.cat = f.nombre; } });  // aportaciones extraordinarias de un fondo
@@ -714,9 +715,10 @@ function aportesFondos(hasta) {
 const iniciales = ing.fondos.filter(f => f.inicial && f.inicialFecha && f.inicialFecha <= hasta).map(f => ({ id:f.id, fondoId:f.id, tipo:'inversion', d:f.inicialFecha, amount:f.inicial, per:'unica', inicial:true, cat:f.nombre, desc:f.nombre, p:f.persona || miembroFan() || 'Fan' }));
 return [...iniciales, ...ing.fondos.filter(f => f.aporte && f.desde).flatMap(f => ocurrencias({ id:f.id, fondoId:f.id, tipo:'inversion', d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta, cat:f.nombre, desc:f.nombre, p:f.persona || miembroFan() || 'Fan' }, hasta))];
 }
-function modeloFondos(anios) {
+const claseSub = () => ing.sub === 'planes' ? 'plan' : ing.sub === 'fondos' ? 'fondo' : null;   // 'resumen': todas las inversiones
+function modeloFondos(anios, clase) {
 const hoy = hoyStr(), tope = sumarMeses(hoy, anios * 12);
-return ing.fondos.map(f => {
+return ing.fondos.filter(f => !clase || f.clase === clase).map(f => {
 const isin = f.isin, px = isin && precios[isin] && precios[isin].estado === 'ok' ? precios[isin] : null;
 const plan = f.aporte && f.desde ? ocurrencias({ d:f.desde, amount:f.aporte, per:f.per, fin:f.hasta }, tope) : [];
 const ex = ing.items.filter(t => t.tipo === 'inversion' && t.fondoId === f.id).map(t => ({ d:t.d, amount:t.amount }));   // extraordinarias de este fondo
@@ -725,7 +727,7 @@ const puntuales = [...(f.inicial && f.inicialFecha ? [{ d:f.inicialFecha, amount
 const primera = [f.desde, ...puntuales.map(t => t.d)].filter(Boolean).sort()[0];
 const d0 = anclado ? f.baseFecha : sumarDias(primera || hoy, -1), v0 = anclado ? f.baseValor : 0;
 const aport0 = !anclado ? 0 : f.baseAportado != null ? f.baseAportado : [...plan, ...puntuales].filter(t => t.d <= d0).reduce((s, t) => s + t.amount, 0);
-const F = { id:f.id, nombre:f.nombre, isin, f, d0, v0, aport0, anclado, rManual:(f.rent || 0) / 100, rOver:f.rent == null ? null : f.rent / 100, px,
+const F = { id:f.id, clase:f.clase, nombre:f.nombre, isin, f, d0, v0, aport0, anclado, rManual:(f.rent || 0) / 100, rOver:f.rent == null ? null : f.rent / 100, px,
 pxEstado:isin ? (precios[isin] ? precios[isin].estado : 'pendiente') : 'sin', pxMsg:isin && precios[isin] ? precios[isin].msg : '',
 ap:[...plan, ...puntuales].filter(t => t.d > d0).map(t => ({ d:t.d, a:t.amount })).sort((a, b) => a.d < b.d ? -1 : 1), extras:ex };
 if (px) {
@@ -767,30 +769,43 @@ return { G, iHoy, V, C, B:V.map((v, i) => v - C[i]) };
 }
 function pintarFondos() {
 ing.fondos.forEach(f => { if (f.isin) cargarPrecios(f.isin); });
-const fs = modeloFondos(+ing.horizonte);
+const clase = claseSub(), fs = modeloFondos(+ing.horizonte, clase), resumen = ing.sub === 'resumen';
 const corta = d => new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' });
 const pc = x => x.toLocaleString('es-ES', { maximumFractionDigits:1 });
-$('iFondosNota').textContent = fs.length > 1 ? 'total ' + eur0.format(fs.reduce((s, f) => s + f.hoy, 0)) : '';
-$('iFondosL').innerHTML = fs.length ? fs.map(f => {
+$('iFondosT').textContent = resumen ? 'Todas las inversiones · valor estimado hoy' : clase === 'plan' ? 'Planes de pensiones · valor estimado hoy' : 'Fondos · valor estimado hoy';
+$('iFondosNota').textContent = fs.length > 1 && !resumen ? 'total ' + eur0.format(fs.reduce((s, f) => s + f.hoy, 0)) : '';
+let cab = '';
+if (resumen && fs.length) {   // resumen de todas las inversiones: totales y desglose por clase
+const tot = fs.reduce((t, f) => t + f.hoy, 0), ap = fs.reduce((t, f) => t + f.aportado, 0), gn = tot - ap;
+cab = `<div class="tiles" style="margin:0 0 8px;grid-template-columns:repeat(3,1fr)"><div class="tile"><div class="label">Valor hoy</div><div class="v num">${eur0.format(tot)}</div></div><div class="tile"><div class="label">Aportado</div><div class="v num">${eur0.format(ap)}</div></div><div class="tile"><div class="label">Beneficio</div><div class="v num ${gn >= 0 ? 'pos' : 'neg'}">${gn >= 0 ? '+' : ''}${eur0.format(gn)}${ap > 0 ? ' (' + (gn >= 0 ? '+' : '') + pc(gn / ap * 100) + ' %)' : ''}</div></div></div>`
++ [['fondo', 'Fondos'], ['plan', 'Planes de pensiones']].map(([k, n]) => { const g = fs.filter(f => f.clase === k); if (!g.length) return ''; const v = g.reduce((t, f) => t + f.hoy, 0), a2 = g.reduce((t, f) => t + f.aportado, 0);
+return `<div class="row"><div><div class="d">${n} <span class="label">(${g.length})</span></div><div class="c">Aportado ${eur0.format(a2)} · beneficio <span class="${v - a2 >= 0 ? 'pos' : 'neg'}">${v - a2 >= 0 ? '+' : ''}${eur0.format(v - a2)}</span></div></div><div class="m num">${eur.format(v)}</div></div>`; }).join('')
++ '<div class="day" style="margin:10px 0 2px">Detalle</div>';
+}
+const vacio = resumen ? 'Aún no hay fondos ni planes. Añádelos en las pestañas Fondos y Plan de pensiones.'
+: clase === 'plan' ? 'Pulsa «+ Nuevo plan» e indica su nombre, tu aportación inicial y/o cuánto aportas cada mes y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Si no encuentro precios, lo estimo con la rentabilidad que indiques.'
+: 'Pulsa «+ Nuevo fondo» e indica su ISIN, tu aportación inicial y/o cuánto aportas cada mes (la periódica es opcional) y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Busco los precios, estimo su valor de hoy y proyecto su evolución.';
+$('iFondosL').innerHTML = cab + (fs.length ? fs.map(f => {
 const precio = !f.isin ? 'sin ISIN: estimación manual' : f.px ? `VL ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:2 })} € (${corta(f.fechaNav)})`
 : f.pxEstado === 'error' ? `sin precios (${esc(f.pxMsg || 'error')}) · <a href="#" data-retry="${esc(f.isin)}" style="color:var(--s1)">reintentar</a>` : 'buscando precios…';
 const pct = f.aportado > 0 ? ' (' + (f.gan >= 0 ? '+' : '') + pc(f.gan / f.aportado * 100) + ' %)' : '';
 const plan = f.f.aporte ? `Aportas ${eur0.format(f.f.aporte)} ${NOMBRE_PER[f.f.per]} desde ${corta(f.f.desde)}${f.f.hasta ? ' hasta ' + corta(f.f.hasta) : ''}` : 'sin aportación periódica';
 const base = f.anclado ? `Partes de ${eur0.format(f.v0)} (aportado ${eur0.format(f.aport0)}) el ${corta(f.d0)}` : 'Reconstruido desde la primera aportación';
 const iniTxt = f.f.inicial ? `Inicial ${eur0.format(f.f.inicial)} (${corta(f.f.inicialFecha)}) · ` : '';
-const extrasTxt = f.extras.length ? ` · ${f.extras.length} extra${f.extras.length === 1 ? '' : 's'} (${eur0.format(f.extras.reduce((s, t) => s + t.amount, 0))})` : '';
+const extrasTxt = f.extras.length ? ` · ${f.extras.length} extra${f.extras.length === 1 ? '' : 's'} (${eur0.format(f.extras.reduce((t, x) => t + x.amount, 0))})` : '';
+const tag = resumen ? ` <span class="label">${f.clase === 'plan' ? 'plan de pensiones' : 'fondo'}</span>` : '';
 return `<div class="row" data-fondo="${esc(f.nombre)}" style="cursor:pointer;${ing.fondoSel === norm(f.nombre) ? 'background:var(--grid);border-radius:8px;padding-left:6px;padding-right:6px' : ''}"><div>
-<div class="d">${esc(f.nombre)} <button class="btn2" data-edit="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">Editar</button><button class="btn2" data-extra="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">+ Aportación</button></div>
+<div class="d">${esc(f.nombre)}${tag} <button class="btn2" data-edit="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">Editar</button><button class="btn2" data-extra="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">+ Aportación</button></div>
 <div class="c">${f.isin ? esc(f.isin) + ' · ' : ''}${precio}</div>
 <div class="c">${iniTxt}${plan}${extrasTxt} · ${base}</div>
 <div class="c">Aportado ${eur0.format(f.aportado)} · beneficio <span class="${f.gan >= 0 ? 'pos' : 'neg'}">${f.gan >= 0 ? '+' : ''}${eur0.format(f.gan)}${pct}</span> · rentab. ${pc(f.r * 100)} %/año (${f.rFuente})</div>
 </div><div class="m num">${eur.format(f.hoy)}</div></div>`;
-}).join('') : '<div class="empty" style="padding:8px 0;font-size:13px">Pulsa «+ Nuevo fondo» e indica su ISIN, tu aportación inicial y/o cuánto aportas cada mes (la periódica es opcional) y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Busco los precios, estimo su valor de hoy y proyecto su evolución.</div>';
+}).join('') : `<div class="empty" style="padding:8px 0;font-size:13px">${vacio}</div>`);
 }
 function pintarProy() {
-const fs = modeloFondos(+ing.horizonte), sel = ing.fondoSel ? fs.filter(f => norm(f.nombre) === ing.fondoSel) : fs, box = $('iProyBox');
+const fs = modeloFondos(+ing.horizonte, claseSub()), sel = ing.fondoSel ? fs.filter(f => norm(f.nombre) === ing.fondoSel) : fs, box = $('iProyBox');
 $('iHor').value = ing.horizonte;
-if (!sel.length) { box.innerHTML = '<div class="empty">Añade un fondo para ver la evolución y la proyección.</div>'; $('iProyRes').innerHTML = ''; return; }
+if (!sel.length) { box.innerHTML = `<div class="empty">${ing.sub === 'planes' ? 'Añade un plan de pensiones' : 'Añade un fondo'} para ver la evolución y la proyección.</div>`; $('iProyRes').innerHTML = ''; return; }
 const S = serieFondos(sel, +ing.horizonte), n = S.V.length - 1, h = S.iHoy, tot = sel.reduce((s, f) => s + f.hoy, 0);
 const rPond = tot > 0 ? sel.reduce((s, f) => s + f.r * f.hoy, 0) / tot : 0;
 $('iProyRes').innerHTML = `Hoy <b>${eur0.format(S.V[h])}</b> (beneficio <span class="${S.B[h] >= 0 ? 'pos' : 'neg'}">${eur0.format(S.B[h])}</span>) · en ${ing.horizonte} años ≈ <b>${eur0.format(S.V[n])}</b>: aportado ${eur0.format(S.C[n])}, beneficio <span class="pos">${eur0.format(S.B[n])}</span> · con ${(rPond * 100).toLocaleString('es-ES', { maximumFractionDigits:1 })} %/año`;
@@ -857,10 +872,11 @@ if (!ing.extraId || !confirm('¿Eliminar esta aportación extraordinaria? No se 
 const ok = await ingOp(() => rpc('ingresos_borrar', { p_codigo:ing.code, p_id:ing.extraId }));
 if (ok || ing.estado !== 'ok') $('xDlg').close(); else $('xErr').textContent = ing.msg;
 }
-function abrirFondo(id) {
+function abrirFondo(id, clase) {
 const f = id ? ing.fondos.find(x => x.id === id) : null;
-ing.fondoId = f ? f.id : null;
-$('vTitulo').textContent = f ? 'Editar fondo' : 'Nuevo fondo';
+ing.fondoId = f ? f.id : null; ing.fondoClase = f ? f.clase : (clase || 'fondo');
+const plan = ing.fondoClase === 'plan';
+$('vTitulo').textContent = (f ? 'Editar ' : 'Nuevo ') + (plan ? 'plan de pensiones' : 'fondo');
 $('vNombre').value = f ? f.nombre : ''; $('vIsin').value = f ? f.isin : '';
 $('vInicial').value = f && f.inicial ? f.inicial : ''; $('vInicialF').value = f && f.inicialFecha ? f.inicialFecha : '';
 $('vAporte').value = f && f.aporte ? f.aporte : ''; $('vPer').value = f ? f.per : 'mensual';
@@ -869,7 +885,7 @@ $('vAportado').value = f && f.baseAportado != null ? f.baseAportado : ''; $('vVa
 $('vFecha').value = f && f.baseFecha ? f.baseFecha : hoyStr();
 $('vRent').value = f && f.rent != null ? f.rent : '';
 $('vDel').classList.toggle('hidden', !f);
-$('vNota').textContent = f ? 'Para actualizar el valor: pon la fecha de hoy, lo aportado hasta hoy y lo que vale ahora.' : '';
+$('vNota').textContent = (f ? 'Para actualizar el valor: pon la fecha de hoy, lo aportado hasta hoy y lo que vale ahora. ' : '') + (plan ? 'Si no encuentro precios del plan, lo estimo con la rentabilidad que indiques abajo.' : '');
 $('vErr').textContent = '';
 $('vDlg').showModal();
 }
@@ -879,7 +895,7 @@ const num = id => $(id).value === '' ? null : Math.round(parseFloat($(id).value)
 const nombre = $('vNombre').value.trim(), isin = $('vIsin').value.trim().toUpperCase(), aporte = num('vAporte'), desde = $('vDesde').value || null, hasta = $('vHasta').value || null;
 const valor = num('vValor'), aportado = num('vAportado'), fecha = $('vFecha').value || null, rent = num('vRent'), inicial = num('vInicial'), inicialF = $('vInicialF').value || null;
 const err = m => { $('vErr').textContent = m; };
-if (!nombre) return err('Pon un nombre al fondo.');
+if (!nombre) return err('Pon un nombre.');
 if (isin && !ISIN_RE.test(isin)) return err('El ISIN debe tener 12 caracteres (por ejemplo, IE00B03HD191).');
 if (inicial !== null && !(inicial > 0)) return err('La aportación inicial debe ser mayor que 0.');
 if (inicial !== null && !inicialF) return err('Indica la fecha de la aportación inicial.');
@@ -893,7 +909,7 @@ if (aporte === null && valor === null && inicial === null) return err('Indica un
 if (rent !== null && (rent < -100 || rent > 100)) return err('La rentabilidad debe estar entre -100 y 100.');
 $('vSave').disabled = true;
 const ok = await ingOp(() => rpc('fondos_guardar', { p_codigo:ing.code, p_id:ing.fondoId || crypto.randomUUID(), p_nombre:nombre, p_isin:isin, p_aporte:aporte, p_periodicidad:$('vPer').value, p_aporte_desde:aporte === null ? null : desde, p_aporte_hasta:aporte === null ? null : hasta,
-p_base_fecha:valor === null ? null : fecha, p_base_aportado:valor === null ? null : aportado, p_base_valor:valor, p_rent_anual:rent, p_persona:miembroFan() || 'Fan', p_inicial:inicial, p_inicial_fecha:inicial === null ? null : inicialF }));
+p_base_fecha:valor === null ? null : fecha, p_base_aportado:valor === null ? null : aportado, p_base_valor:valor, p_rent_anual:rent, p_persona:miembroFan() || 'Fan', p_inicial:inicial, p_inicial_fecha:inicial === null ? null : inicialF, p_clase:ing.fondoClase || 'fondo' }));
 $('vSave').disabled = false;
 if (ok || ing.estado !== 'ok') { $('vDlg').close(); if (ok && isin) cargarPrecios(isin, true); } else $('vErr').textContent = ing.msg;
 }
@@ -933,10 +949,11 @@ $('iMsg').textContent = ing.msg; $('iMsg').classList.toggle('hidden', !ing.msg);
 const m = modoIng(), res = m === 'ingreso', X = TXT_ING[m];
 const yr = ing.gran === 'y', hm = hoyStr().slice(0, 7), cy = hm.slice(0, 4);
 $('iYear').classList.add('hidden');
-$('iAdd').disabled = ing.estado !== 'ok'; $('iAdd').textContent = X.add;
+$('iAdd').disabled = ing.estado !== 'ok'; $('iAdd').textContent = !res && ing.sub === 'planes' ? '+ Nuevo plan' : X.add;
+$('iAdd').classList.toggle('hidden', !res && ing.sub === 'resumen');   // el resumen de inversiones solo se consulta
 $('iChange').classList.toggle('hidden', ing.estado !== 'ok');
 $('iListT').textContent = X.lista;
-const modoFondos = !res && ing.sub === 'fondos' && ing.estado === 'ok';
+const modoFondos = !res && ['fondos', 'planes', 'resumen'].includes(ing.sub) && ing.estado === 'ok';
 $('iSub').classList.toggle('hidden', res || ing.estado !== 'ok');
 document.querySelectorAll('#iSub button').forEach(b => b.setAttribute('aria-pressed', b.dataset.s === ing.sub));
 ['iFondos', 'iProy'].forEach(i => $(i).classList.toggle('hidden', !modoFondos));
@@ -1288,7 +1305,7 @@ $('iWho').addEventListener('click', e => { const b = e.target.closest('button');
 $('iGran').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.gran = b.dataset.g; LSset('iGran', ing.gran); ing.selKey = null; ing.fresh = true; pintarIng(); } });
 $('iPrevY').onclick = () => { ing.anio = String(+ing.anio - 1); ing.selKey = null; ing.fresh = true; pintarIng(); };
 $('iNextY').onclick = () => { ing.anio = String(+ing.anio + 1); ing.selKey = null; ing.fresh = true; pintarIng(); };
-$('iAdd').onclick = () => modoIng() === 'inversion' ? abrirFondo(null) : abrirIng(null);
+$('iAdd').onclick = () => modoIng() === 'inversion' ? abrirFondo(null, ing.sub === 'planes' ? 'plan' : 'fondo') : abrirIng(null);
 $('iChange').onclick = cambiarCodigo;
 $('iRows').addEventListener('submit', e => { if (e.target.id === 'iCodeForm') enviarCodigo(e); });
 $('iRows').addEventListener('click', e => {
