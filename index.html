@@ -38,7 +38,10 @@ input[type=password] { width:100%; font:inherit; font-size:16px; padding:14px; b
 #err { color:var(--bad); min-height:1.2em; font-size:14px; }
 #app { height:100dvh; max-width:1280px; margin:0 auto; display:flex; flex-direction:column; gap:8px;
 padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom)); }
-.top { flex:none; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.top { flex:none; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
+.search { flex:1 1 150px; min-width:0; max-width:340px; font:inherit; font-size:14px; padding:7px 12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+.sortbar { flex:none; display:flex; justify-content:flex-end; margin-bottom:4px; }
+.sort { font:inherit; font-size:12.5px; padding:4px 8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink2); max-width:100%; }
 .month { display:flex; align-items:center; gap:4px; }
 .month button { width:36px; height:36px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); font-size:18px; }
 .month button:disabled { opacity:.35; }
@@ -153,6 +156,7 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <strong id="monthName"></strong>
 <button id="next" aria-label="Mes siguiente">›</button>
 </div>
+<input id="q" class="search" type="search" placeholder="Buscar movimiento…" autocomplete="off" aria-label="Buscar movimiento por nombre">
 <div class="seg" id="who" role="group" aria-label="Persona"></div>
 </div>
 <div class="grid">
@@ -181,7 +185,9 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <button data-t="list" aria-pressed="false">Movimientos</button>
 </div>
 <section class="pane cats on" id="paneCats"><h2>Por categoría <span class="label">vs media 6 meses</span></h2><div class="scroll" id="cats"></div></section>
-<section class="pane list" id="paneList"><h2>Movimientos <span class="label" id="count"></span></h2><div class="scroll" id="list"></div></section>
+<section class="pane list" id="paneList"><h2>Movimientos <span class="label" id="count"></span></h2>
+<div class="sortbar"><select class="sort" data-sort aria-label="Ordenar movimientos"></select></div>
+<div class="scroll" id="list"></div></section>
 </div>
 </div>
 <section class="sag hidden" id="hist">
@@ -205,7 +211,7 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <div class="tile"><div class="label">Movimientos</div><div class="v num" id="hT3"></div></div>
 </div>
 </section>
-<section class="card catsCard"><h2 id="hTitle"></h2><div class="delta" id="hDetail" style="margin:0 0 4px"></div><div class="hbody"><div class="hscroll" id="hRows"></div><div class="hside"><div class="scroll" id="hList"></div></div></div></section>
+<section class="card catsCard"><h2 id="hTitle"></h2><div class="delta" id="hDetail" style="margin:0 0 4px"></div><div class="hbody"><div class="hscroll" id="hRows"></div><div class="hside"><div class="sortbar"><select class="sort" data-sort aria-label="Ordenar movimientos"></select></div><div class="scroll" id="hList"></div></div></div></section>
 </section>
 <section class="sag hidden" id="sag">
 <div class="top">
@@ -248,7 +254,7 @@ const LS = k => { try { return localStorage.getItem(k); } catch (e) { return nul
 const LSset = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 let DATA = null, months = [], firstMonth = '', tab = LS('tab') || 'cats';
-const state = { month:null, who:LS('who') || null };
+const state = { month:null, who:LS('who') || null, q:'' };
 const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 async function descifrar(pw) {
 const r = await fetch('data.json?t=' + Date.now(), { cache:'no-store' });
@@ -390,7 +396,7 @@ dibujarBarras(box, c, hist.sel, irAlFinal);
 const i = hist.sel, v = vals[i], cur = yr ? keys[i] === cy : keys[i] === hm;
 const vs = cur ? '<span class="n">en curso</span>' : i > 0 && vals[i - 1] > 0 ? `${chip(v, vals[i - 1])} <span class="n">vs ${yr ? 'año' : 'mes'} anterior</span>` : '';
 $('hDetail').innerHTML = `<b>${esc(lbl(keys[i]))}</b>: <span class="num">${eur.format(v)}</span> ${vs}`;
-const lista = c.items.filter(t => c.key(t) === keys[i]).sort((a, b) => b.d.localeCompare(a.d));
+const lista = ordenar(c.items.filter(t => c.key(t) === keys[i]));
 $('hList').innerHTML = lista.map(t => `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' })}</b> · ${esc(catOf(t))} · pagó ${esc(t.paid)}${state.who !== 'Total' && t.total !== importe(t) ? ` · total ${eur.format(t.total)}` : ''}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`).join('') || '<div class="empty">Sin gastos</div>';
 $('hList').scrollTop = 0;
 }
@@ -589,17 +595,36 @@ return `<div class="cat"><span>${esc(n)}</span><span class="a num">${eur.format(
 <div class="bar"><span style="width:${(v / mx * 100).toFixed(1)}%"></span></div>${vs ? `<div class="vs">${vs}</div>` : ''}</div>`;
 }).join('');
 }
+const SORTS = { fecha:'Fecha: recientes primero', antiguos:'Fecha: antiguos primero', mayor:'Importe: mayor a menor', menor:'Importe: menor a mayor' };
+let sortMode = SORTS[LS('sort')] ? LS('sort') : 'fecha';
+const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+function ordenar(arr) {
+const a = [...arr], porFecha = (x, y) => y.d.localeCompare(x.d);
+if (sortMode === 'mayor') a.sort((x, y) => importe(y) - importe(x) || porFecha(x, y));
+else if (sortMode === 'menor') a.sort((x, y) => importe(x) - importe(y) || porFecha(x, y));
+else if (sortMode === 'antiguos') a.sort((x, y) => -porFecha(x, y));
+else a.sort(porFecha);
+return a;
+}
+function setSort(v) {
+sortMode = SORTS[v] ? v : 'fecha'; LSset('sort', sortMode);
+document.querySelectorAll('[data-sort]').forEach(s => s.value = sortMode);
+if (!$('app').classList.contains('hidden') && DATA) { pintarLista(delMes(state.month)); if (sag.view === 'hist') dibujarHist(false); }
+}
 function pintarLista(cur) {
-$('count').textContent = cur.length + ' mov.';
-if (!cur.length) { $('list').innerHTML = '<div class="empty">Todavía no hay gastos en este mes</div>'; return; }
-const s = [...cur].sort((a, b) => b.d.localeCompare(a.d));
+const q = norm(state.q), f = q ? cur.filter(t => norm(t.desc).includes(q)) : cur;
+$('count').textContent = q ? `${f.length} de ${cur.length} mov. · ${eur0.format(f.reduce((s, t) => s + importe(t), 0))}` : cur.length + ' mov.';
+if (!f.length) { $('list').innerHTML = `<div class="empty">${q ? 'Ningún movimiento coincide con la búsqueda' : 'Todavía no hay gastos en este mes'}</div>`; return; }
+const porDia = sortMode === 'fecha' || sortMode === 'antiguos';
 let html = '', last = '';
-s.forEach(t => {
-if (t.d !== last) { last = t.d; html += `<div class="day">${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'short' })}</div>`; }
+ordenar(f).forEach(t => {
+if (porDia && t.d !== last) { last = t.d; html += `<div class="day">${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'short' })}</div>`; }
 const extra = state.who !== 'Total' && t.total !== importe(t) ? ` · total ${eur.format(t.total)}` : '';
-html += `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}</div><div class="c">${esc(t.cat || '')} · pagó ${esc(t.paid)}${extra}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`;
+const fecha = porDia ? '' : `<b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' })}</b> · `;
+html += `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}</div><div class="c">${fecha}${esc(t.cat || '')} · pagó ${esc(t.paid)}${extra}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`;
 });
 $('list').innerHTML = html;
+$('list').scrollTop = 0;
 }
 function setTab(t) {
 tab = t; LSset('tab', t);
@@ -623,6 +648,12 @@ else { sag.month = k; sag.ysel = null; sag.period = 'mes'; LSset('sagPeriod', 'm
 let rzs; new ResizeObserver(() => { clearTimeout(rzs); rzs = setTimeout(() => { if (sag.view === 'sagunto' && sag.ctx) pintarSagChart(); }, 80); }).observe($('sBars'));
 $('hRows').addEventListener('click', e => { const r = e.target.closest('[data-i]'); if (r) { hist.sel = +r.dataset.i; dibujarHist(false); } });
 let rzh; new ResizeObserver(() => { clearTimeout(rzh); rzh = setTimeout(() => { if (sag.view === 'hist') dibujarHist(false); }, 80); }).observe($('hRows'));
+document.querySelectorAll('[data-sort]').forEach(s => {
+s.innerHTML = Object.entries(SORTS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+s.value = sortMode;
+s.addEventListener('change', () => setSort(s.value));
+});
+$('q').addEventListener('input', () => { state.q = $('q').value; if (state.q.trim()) setTab('list'); pintarLista(delMes(state.month)); });
 $('hClear').onclick = () => { hist.cats.clear(); LSset('hCats', '[]'); pintarHist(); };
 $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTab(b.dataset.t); });
 $('prev').onclick = () => { state.month = months[months.indexOf(state.month) - 1]; pintar(); };
