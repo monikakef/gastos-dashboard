@@ -96,6 +96,9 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 #hist .top { flex-wrap:wrap; }
 .hscroll { flex:1; min-height:120px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
 .hscroll svg { display:block; }
+.sagChart { flex:1.2; min-height:170px; }
+#sag .catsCard { flex:1; min-height:110px; }
+.sagChart .seg button { padding:3px 9px; font-size:12px; }
 .hbody { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
 .hbody .hscroll { flex:1.2; }
 .hside { flex:1; min-height:90px; display:flex; flex-direction:column; border-top:1px solid var(--line); padding-top:6px; }
@@ -221,6 +224,11 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 <div class="tile"><div class="label" id="sT2L"></div><div class="v num" id="sT2"></div></div>
 <div class="tile"><div class="label">Movimientos</div><div class="v num" id="sT3"></div></div>
 </div>
+</section>
+<section class="card sagChart">
+<h2><span>Evolución</span><div class="seg" id="sGran" role="group" aria-label="Agrupar por"><button data-g="m" aria-pressed="true">Meses</button><button data-g="y" aria-pressed="false">Años</button></div></h2>
+<div class="delta" id="sDetail" style="margin:0 0 4px"></div>
+<div class="hscroll" id="sBars"></div>
 </section>
 <section class="card catsCard"><h2>Por categoría</h2><div class="scroll" id="sCats"></div></section>
 </section>
@@ -349,11 +357,8 @@ hist.sel = keys.length - 1;
 dibujarHist(true);
 }
 const shortMonth = k => { const [y, mo] = k.split('-').map(Number); return new Date(y, mo - 1, 1).toLocaleDateString('es-ES', { month:'short' }).replace('.', '') + ' ' + String(y).slice(2); };
-function dibujarHist(irAlFinal) {
-const c = hist.ctx, box = $('hRows');
-if (!c) return;
-const { keys, vals, yr, cy, hm, lbl } = c;
-if (!keys.length) { box.innerHTML = '<div class="empty">Sin gastos con este filtro</div>'; $('hDetail').innerHTML = ''; $('hList').innerHTML = ''; return; }
+function dibujarBarras(box, c, selIdx, irAlFinal) {  // gráfica de barras verticales con scroll horizontal
+const { keys, vals, yr, cy, hm } = c;
 const prevScroll = box.scrollLeft;
 const cw = Math.max(box.clientWidth, 200), H = Math.max(box.clientHeight, 120);
 const step = Math.min(Math.max(yr ? 70 : 44, cw / keys.length), 96), W = Math.max(cw, keys.length * step);
@@ -362,13 +367,20 @@ const y = v => T + (1 - v / mx) * (H - T - B);
 let g = [0, .5, 1].map(f => `<line x1="0" x2="${W}" y1="${y(mx * f)}" y2="${y(mx * f)}" stroke="var(--grid)"/>`).join('');
 keys.forEach((k, i) => {
 const v = vals[i], cur = yr ? k === cy : k === hm, x = i * step + (step - bw) / 2, h = y(0) - y(v);
-if (v > 0) g += `<rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="var(--s1)" opacity="${cur ? .55 : 1}" ${i === hist.sel ? 'stroke="var(--ink)" stroke-width="1.5"' : ''}/>`;
+if (v > 0) g += `<rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="var(--s1)" opacity="${cur ? .55 : 1}" ${i === selIdx ? 'stroke="var(--ink)" stroke-width="1.5"' : ''}/>`;
 if (v > 0) g += `<text x="${(i * step + step / 2).toFixed(1)}" y="${(y(v) - 4).toFixed(1)}" text-anchor="middle" font-size="10.5" fill="var(--ink2)">${eur0.format(v)}</text>`;
-g += `<text x="${(i * step + step / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10.5" fill="${i === hist.sel ? 'var(--ink)' : 'var(--ink3)'}" ${i === hist.sel ? 'font-weight="600"' : ''}>${esc(yr ? k : shortMonth(k))}</text>`;
+g += `<text x="${(i * step + step / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="10.5" fill="${i === selIdx ? 'var(--ink)' : 'var(--ink3)'}" ${i === selIdx ? 'font-weight="600"' : ''}>${esc(yr ? k : shortMonth(k))}</text>`;
 g += `<rect data-i="${i}" x="${i * step}" y="0" width="${step}" height="${H}" fill="transparent" style="cursor:pointer"/>`;
 });
-box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gasto por ${yr ? 'año' : 'mes'} de la selección">${g}</svg>`;
+box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gasto por ${yr ? 'año' : 'mes'}">${g}</svg>`;
 box.scrollLeft = irAlFinal ? box.scrollWidth : prevScroll;
+}
+function dibujarHist(irAlFinal) {
+const c = hist.ctx, box = $('hRows');
+if (!c) return;
+const { keys, vals, yr, cy, hm, lbl } = c;
+if (!keys.length) { box.innerHTML = '<div class="empty">Sin gastos con este filtro</div>'; $('hDetail').innerHTML = ''; $('hList').innerHTML = ''; return; }
+dibujarBarras(box, c, hist.sel, irAlFinal);
 const i = hist.sel, v = vals[i], cur = yr ? keys[i] === cy : keys[i] === hm;
 const vs = cur ? '<span class="n">en curso</span>' : i > 0 && vals[i - 1] > 0 ? `${chip(v, vals[i - 1])} <span class="n">vs ${yr ? 'año' : 'mes'} anterior</span>` : '';
 $('hDetail').innerHTML = `<b>${esc(lbl(keys[i]))}</b>: <span class="num">${eur.format(v)}</span> ${vs}`;
@@ -376,7 +388,25 @@ const lista = c.items.filter(t => c.key(t) === keys[i]).sort((a, b) => b.d.local
 $('hList').innerHTML = lista.map(t => `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' })}</b> · ${esc(catOf(t))} · pagó ${esc(t.paid)}${state.who !== 'Total' && t.total !== importe(t) ? ` · total ${eur.format(t.total)}` : ''}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`).join('') || '<div class="empty">Sin gastos</div>';
 $('hList').scrollTop = 0;
 }
-const sag = { view:LS('view') || 'gastos', period:LS('sagPeriod') || 'mes', month:null, months:[], items:[] };
+const sag = { view:LS('view') || 'gastos', period:LS('sagPeriod') || 'mes', gran:LS('sGran') === 'y' ? 'y' : 'm', ysel:null, fresh:true, month:null, months:[], items:[] };
+function pintarSagChart() {
+const hm = hoyStr().slice(0, 7), cy = hm.slice(0, 4), yr = sag.gran === 'y';
+document.querySelectorAll('#sGran button').forEach(b => b.setAttribute('aria-pressed', b.dataset.g === sag.gran));
+const kf = t => yr ? t.d.slice(0, 4) : ym(t.d);
+const by = {};
+sag.items.forEach(t => by[kf(t)] = (by[kf(t)] || 0) + t.total);
+let keys = [];
+if (yr) { for (let y = +sag.months[0].slice(0, 4); y <= +sag.months[sag.months.length - 1].slice(0, 4); y++) keys.push(String(y)); }
+else keys = sag.months.slice();
+const vals = keys.map(k => by[k] || 0);
+const i = Math.max(0, keys.indexOf(yr ? (sag.ysel || sag.month.slice(0, 4)) : sag.month));
+sag.ctx = { keys, vals, yr, cy, hm, i };
+dibujarBarras($('sBars'), sag.ctx, i, sag.fresh);
+sag.fresh = false;
+const v = vals[i], cur = yr ? keys[i] === cy : keys[i] === hm;
+const vs = cur ? '<span class="n">en curso</span>' : i > 0 && vals[i - 1] > 0 ? `${chip(v, vals[i - 1])} <span class="n">vs ${yr ? 'año' : 'mes'} anterior</span>` : '';
+$('sDetail').innerHTML = `<b>${esc(yr ? keys[i] : monthLabel(keys[i]))}</b>: <span class="num">${eur.format(v)}</span> ${vs}`;
+}
 function iniciarSagunto() {
 const S = DATA.sagunto;
 $('vSag').classList.toggle('hidden', !S);
@@ -429,6 +459,7 @@ $('sT1L').textContent = 'Meses'; $('sT1').textContent = sag.months.filter(x => x
 }
 $('sT2L').textContent = 'Media mensual'; $('sT2').textContent = eur0.format(mediaMes);
 $('sT3').textContent = items.length;
+pintarSagChart();
 const by = {};
 items.forEach(t => { const c = t.cat || 'Sin categoría'; by[c] = (by[c] || 0) + t.total; });
 const arr = Object.entries(by).sort((a, b) => b[1] - a[1]);
@@ -576,6 +607,14 @@ $('who').addEventListener('click', cambiarWho);
 $('hWho').addEventListener('click', cambiarWho);
 $('hGran').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { hist.gran = b.dataset.g; LSset('hGran', hist.gran); pintarHist(); } });
 $('hChips').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const c = b.dataset.c; hist.cats.has(c) ? hist.cats.delete(c) : hist.cats.add(c); LSset('hCats', JSON.stringify([...hist.cats])); pintarHist(); });
+$('sGran').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { sag.gran = b.dataset.g; sag.ysel = null; sag.fresh = true; LSset('sGran', sag.gran); pintarSagChart(); } });
+$('sBars').addEventListener('click', e => {
+const r = e.target.closest('[data-i]'); if (!r || !sag.ctx) return;
+const k = sag.ctx.keys[+r.dataset.i];
+if (sag.ctx.yr) { sag.ysel = k; pintarSagChart(); }
+else { sag.month = k; sag.ysel = null; sag.period = 'mes'; LSset('sagPeriod', 'mes'); pintarSagunto(); }
+});
+let rzs; new ResizeObserver(() => { clearTimeout(rzs); rzs = setTimeout(() => { if (sag.view === 'sagunto' && sag.ctx) pintarSagChart(); }, 80); }).observe($('sBars'));
 $('hRows').addEventListener('click', e => { const r = e.target.closest('[data-i]'); if (r) { hist.sel = +r.dataset.i; dibujarHist(false); } });
 let rzh; new ResizeObserver(() => { clearTimeout(rzh); rzh = setTimeout(() => { if (sag.view === 'hist') dibujarHist(false); }, 80); }).observe($('hRows'));
 $('hClear').onclick = () => { hist.cats.clear(); LSset('hCats', '[]'); pintarHist(); };
