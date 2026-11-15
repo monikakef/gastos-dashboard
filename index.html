@@ -269,7 +269,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <div class="top">
 <div class="seg" id="iWho" role="group" aria-label="Persona"></div>
 <div class="month hidden" id="iYear"><button id="iPrevY" type="button" aria-label="Año anterior">‹</button><strong id="iYearL" style="min-width:56px"></strong><button id="iNextY" type="button" aria-label="Año siguiente">›</button></div>
-<div class="seg hidden" id="rSub" role="group" aria-label="Vista del resumen"><button data-r="graf" aria-pressed="true">Ingresos y gastos</button><button data-r="estado" aria-pressed="false">Estado financiero</button></div>
+<div class="seg hidden" id="rSub" role="group" aria-label="Vista del resumen"><button data-r="graf" aria-pressed="true">Ingresos y gastos</button><button data-r="estado" aria-pressed="false">Estado financiero</button><button data-r="sim" aria-pressed="false">Simulación</button></div>
 <div class="seg hidden" id="iSub" role="group" aria-label="Vista de inversión"><button data-s="aport" aria-pressed="true">Aportaciones</button><button data-s="fondos" aria-pressed="false">Fondos</button><button data-s="planes" aria-pressed="false">Plan de pensiones</button><button data-s="resumen" aria-pressed="false">Resumen</button></div>
 <div class="seg" id="iGran" role="group" aria-label="Agrupar por">
 <button data-g="m" aria-pressed="true">Meses</button>
@@ -305,7 +305,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 </section>
 </div>
 <section class="card hidden" id="iEst" style="flex:1;min-height:0;overflow:auto">
-<h2><span>Estado financiero</span><span class="label" id="iEstNota"></span></h2>
+<h2><span id="iEstT">Estado financiero</span><span class="label" id="iEstNota"></span></h2>
 <div id="iEstB"></div>
 </section>
 <div class="sagRow">
@@ -665,7 +665,7 @@ setView();
 }
 /* ---------- Resumen e Inversión: filas en Supabase, protegidas con un código de acceso propio ---------- */
 const SB = { url:'https://gzewqeoqsgoljzuglwpc.supabase.co', key:'sb_publishable_d2gsiwOPJwDyoKoIjgKIvA_WbVyoBJf' };
-const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null, pat:[], est:{ main:{ k:null, d:1 }, lg:{ k:null, d:1 }, sim:{ k:null, d:1 } }, simF:LS('simF') || '2028-05-06', rsub:LS('rSub') === 'estado' ? 'estado' : 'graf', vista:LS('iVista') === 'dia' ? 'dia' : 'mes', diaMes:null };
+const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null, pat:[], est:{ main:{ k:null, d:1 }, lg:{ k:null, d:1 }, sim:{ k:null, d:1 } }, simF:LS('simF') || '2028-05-06', rsub:['estado', 'sim'].includes(LS('rSub')) ? LS('rSub') : 'graf', vista:LS('iVista') === 'dia' ? 'dia' : 'mes', diaMes:null };
 const TOPE_RESUMEN = 5000;   // máximo visible en la gráfica mes a mes del Resumen (€)
 const modoIng = () => sag.view === 'inv' ? 'inversion' : 'ingreso';  // la pestaña Resumen gestiona ingresos; Inversión, inversiones
 const CATS_ING = { ingreso:['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'],
@@ -1025,7 +1025,8 @@ return (typeof x === 'string' || typeof y === 'string' ? String(x).localeCompare
 const cabeza = (tabla, cols, st) => '<tr>' + cols.map(([k, n]) => `<th data-ord="${tabla}:${k}" class="ord" aria-sort="${st.k === k ? (st.d > 0 ? 'ascending' : 'descending') : 'none'}">${n}${st.k === k ? (st.d > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('') + '</tr>';
 function pintarEstado() {
 ing.fondos.forEach(f => { const e = isinEfectivo(f); if (e) cargarPrecios(e); });
-const hoy = hoyStr(), dSim = [['1 año', sumarMeses(hoy, 12)], ['3 años', sumarMeses(hoy, 36)], ['5 años', sumarMeses(hoy, 60)]];
+const hoy = hoyStr(), dSim = [['1 año', sumarMeses(hoy, 12)], ['3 años', sumarMeses(hoy, 36)], ['5 años', sumarMeses(hoy, 60)], ['10 años', sumarMeses(hoy, 120)], ['30 años', sumarMeses(hoy, 360)]], sim = ing.rsub === 'sim';
+$('iEstT').textContent = sim ? 'Simulación' : 'Estado financiero';
 if (ing.simF && ing.simF > hoy) dSim.push([new Date(ing.simF + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' }), ing.simF]);
 dSim.sort((x, y) => x[1] < y[1] ? -1 : 1);
 const anios = Math.max(5, Math.ceil(diasEntre(hoy, dSim[dSim.length - 1][1]) / 365) + 1);
@@ -1048,10 +1049,10 @@ const f1 = ordenarPor(filas, ing.est.main, getP).map(r => `<tr><td>${esc(r.nombr
 const tot = `<tr class="tot"><td>TOTAL</td><td></td><td>${m(totI)}</td><td>${m(T('sin'))}</td><td>${m(totV)}</td><td>${m(T('no'))}</td><td>${sg(totR)}</td><td>${totI > 0 ? '100,0 %' : ''}</td><td>${totV > 0 ? `<span class="${totR >= 0 ? 'pos' : 'neg'}">${pc(totR / totV)}</span>` : ''}</td><td></td></tr>`;
 // --- largo plazo ---
 const lg = ing.pat.filter(p => p.tipo === 'largo').map(p => ({ ...p, c:costeLargo(p), pe:pendienteHoy(p) })), tC = lg.reduce((t, r) => t + r.c, 0), tP = lg.reduce((t, r) => t + r.pe, 0);
-const colsL = [['nombre', 'Inversión a largo'], ['c', 'Coste'], ['pe', 'Pendiente de amortización'], ['pg', '¿Pagado?']];
+const colsL = [['nombre', 'Inversión a largo'], ['pg', 'Pagado'], ['pe', 'Pendiente Pago'], ['c', 'Coste']];
 const t2 = lg.length ? `<div class="day" style="margin:12px 0 4px">Inversión a largo plazo</div><div class="estW"><table class="est"><thead>${cabeza('lg', colsL, ing.est.lg)}</thead><tbody>`
-+ ordenarPor(lg, ing.est.lg, (r, k) => k === 'pg' ? (r.pagado ? 1 : 0) : r[k]).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.origen === 'sagunto' ? '<span class="sub auto">coste automático · total gastado en Sagunto</span>' : ''}${r.cuota > 0 ? `<span class="sub auto">cuota ${eur.format(r.cuota)}/mes · baja sola</span>` : ''}</td><td>${m(r.c)}</td><td>${m(r.pe)}</td><td>${r.pagado ? 'SÍ' : 'NO'}</td></tr>`).join('')
-+ `<tr class="tot"><td>TOTAL</td><td>${m(tC)}</td><td>${m(tP)}</td><td></td></tr></tbody></table></div>` : '';
++ ordenarPor(lg, ing.est.lg, (r, k) => k === 'pg' ? (r.pagado ? 1 : 0) : r[k]).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.origen === 'sagunto' ? '<span class="sub auto">coste automático · total gastado en Sagunto</span>' : ''}${r.cuota > 0 ? `<span class="sub auto">cuota ${eur.format(r.cuota)}/mes · baja sola</span>` : ''}</td><td>${r.pagado ? 'SÍ' : 'NO'}</td><td>${m(r.pe)}</td><td>${m(r.c)}</td></tr>`).join('')
++ `<tr class="tot"><td>TOTAL</td><td></td><td>${m(tP)}</td><td>${m(tC)}</td></tr></tbody></table></div>` : '';
 // --- simulación ---
 const simF = r => r.F ? dSim.map(([, d]) => valorFuturo(r.F, d)) : dSim.map(() => r.imp);   // cuentas: sin cambios
 const simFilas = filas.map(r => ({ nombre:r.nombre, v0:r.imp, v:simF(r) }));
@@ -1062,12 +1063,12 @@ const t3 = filas.length ? `<div class="day" style="margin:14px 0 4px;display:fle
 + `<div class="estW"><table class="est"><thead>${cabeza('sim', colsS, ing.est.sim)}</thead><tbody>`
 + ordenarPor(simFilas, ing.est.sim, getS).map(r => `<tr><td>${esc(r.nombre)}</td><td>${m(r.v0)}</td>${r.v.map(v => `<td><b>${m(v)}</b></td>`).join('')}</tr>`).join('')
 + `<tr class="tot"><td>TOTAL cuentas e inversiones</td><td>${m(totI)}</td>${simTot.map(v => `<td>${m(v)}</td>`).join('')}</tr>`
-+ (lg.length ? `<tr><td>Pendiente de amortización</td><td>${m(tP)}</td>${simPend.map(v => `<td>${m(v)}</td>`).join('')}</tr><tr class="tot"><td>Total menos pendiente</td><td>${m(totI - tP)}</td>${simTot.map((v, i) => `<td>${m(v - simPend[i])}</td>`).join('')}</tr>` : '')
++ (lg.length ? `<tr><td>Pendiente Pago</td><td>${m(tP)}</td>${simPend.map(v => `<td>${m(v)}</td>`).join('')}</tr><tr class="tot"><td>Total menos pendiente</td><td>${m(totI - tP)}</td>${simTot.map((v, i) => `<td>${m(v - simPend[i])}</td>`).join('')}</tr>` : '')
 + `</tbody></table></div><div class="c" style="font-size:11.5px;color:var(--ink3)">Inversiones: manteniendo su rentabilidad media y tus aportaciones periódicas. Cuentas: sin cambios (no se suman ahorros futuros). Pendiente: restando la cuota mensual si la hay.</div>` : '';
 const man = ing.pat.filter(p => !(p.tipo === 'fondo' && porId[p.fondoId])).map(p => p.actualizado).filter(Boolean).sort()[0];
 $('iEstNota').textContent = fs.length ? 'hoy ' + corta(hoy) : '';
-$('iEstB').innerHTML = ing.pat.length ? `<div class="estW"><table class="est"><thead>${cabeza('main', colsP, ing.est.main)}</thead><tbody>${f1}${tot}</tbody></table></div>${t2}${t3}
-<div class="c" style="font-size:11.5px;color:var(--ink3);margin-top:8px">Pulsa una cabecera para ordenar. Las inversiones («automático») se recalculan solas con los precios reales y tus aportaciones periódicas. Cuentas y bienes son datos guardados${man ? ' (última actualización: ' + fmtF(man) + ')' : ''}.</div>`
+$('iEstB').innerHTML = ing.pat.length ? (sim ? t3 : `<div class="estW"><table class="est"><thead>${cabeza('main', colsP, ing.est.main)}</thead><tbody>${f1}${tot}</tbody></table></div>${t2}`) + `
+<div class="c" style="font-size:11.5px;color:var(--ink3);margin-top:8px">Pulsa una cabecera para ordenar (una vez, otra para invertir y una tercera para volver al orden inicial). Las inversiones («automático») se recalculan solas con los precios reales y tus aportaciones periódicas. Cuentas y bienes son datos guardados${man ? ' (última actualización: ' + fmtF(man) + ')' : ''}.</div>`
 : '<div class="empty">Aún no hay datos del estado financiero.</div>';
 }
 function tipoPat() {   // muestra solo los campos que corresponden al tipo de fila
@@ -1244,11 +1245,11 @@ $('iMsg').textContent = ing.msg; $('iMsg').classList.toggle('hidden', !ing.msg);
 const m = modoIng(), res = m === 'ingreso', X = TXT_ING[m];
 const yr = ing.gran === 'y', hm = hoyStr().slice(0, 7), cy = hm.slice(0, 4);
 $('iYear').classList.add('hidden');
-const verRes = res && ing.estado === 'ok' && vistaFan(), estado = verRes && ing.rsub === 'estado';   // el estado financiero es de Fan
+const verRes = res && ing.estado === 'ok' && vistaFan(), estado = verRes && ing.rsub !== 'graf';   // el estado financiero es de Fan
 $('rSub').classList.toggle('hidden', !verRes); $('iEst').classList.toggle('hidden', !estado); $('iGran').classList.toggle('hidden', estado);
-document.querySelectorAll('#rSub button').forEach(b => b.setAttribute('aria-pressed', b.dataset.r === (estado ? 'estado' : 'graf')));
+document.querySelectorAll('#rSub button').forEach(b => b.setAttribute('aria-pressed', b.dataset.r === (estado ? ing.rsub : 'graf')));
 $('iAdd').disabled = ing.estado !== 'ok'; $('iAdd').textContent = !res && ing.sub === 'planes' ? '+ Nuevo plan' : X.add;
-$('iAdd').classList.toggle('hidden', !res && ing.sub === 'resumen');
+$('iAdd').classList.toggle('hidden', (!res && ing.sub === 'resumen') || (estado && ing.rsub === 'sim'));
 if (estado) $('iAdd').textContent = '+ Añadir fila';   // el resumen de inversiones solo se consulta
 $('iChange').classList.toggle('hidden', ing.estado !== 'ok');
 $('iListT').textContent = X.lista;
@@ -1644,7 +1645,7 @@ $('vDel').onclick = borrarFondo;
 $('iEstB').addEventListener('click', e => {
 const b = e.target.closest('[data-pedit]'); if (b) { abrirPat(b.dataset.pedit); return; }
 const h = e.target.closest('[data-ord]');
-if (h) { const [t, k] = h.dataset.ord.split(':'), st = ing.est[t]; if (st.k === k) st.d = -st.d; else { st.k = k; st.d = ['nombre', 'banco'].includes(k) ? 1 : -1; } pintarEstado(); }
+if (h) { const [t, k] = h.dataset.ord.split(':'), st = ing.est[t]; const prim = ['nombre', 'banco'].includes(k) ? 1 : -1; if (st.k === k) { if (st.d === prim) st.d = -prim; else { st.k = null; st.d = 1; } } else { st.k = k; st.d = prim; } pintarEstado(); }
 });
 $('iEstB').addEventListener('change', e => { if (e.target.id === 'simF' && e.target.value) { ing.simF = e.target.value; LSset('simF', ing.simF); pintarEstado(); } });
 $('pOrigen').addEventListener('change', tipoPat);
