@@ -316,6 +316,27 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <section class="card catsCard"><h2><span id="iListT">Ingresos del periodo</span><span class="label" id="iCount"></span></h2><div class="scroll" id="iList"></div></section>
 </div>
 </section>
+<dialog id="pDlg">
+<form id="pForm" autocomplete="off">
+<h3 id="pTitulo" style="margin:0 0 10px;font-size:17px">Fila del estado financiero</h3>
+<label>Tipo<select id="pTipo"><option value="cuenta">Cuenta (dinero líquido)</option><option value="fondo">Inversión (fondo o plan del dashboard)</option><option value="largo">Inversión a largo plazo (casa, coche…)</option></select></label>
+<label>Nombre<input id="pNombre" type="text" maxlength="60" required placeholder="Cuenta Corriente"></label>
+<label id="pBancoL">Banco<input id="pBanco" type="text" maxlength="40" placeholder="Sabadell"></label>
+<label id="pImpL">Importe actual (€)<input id="pImp" type="number" step="0.01" inputmode="decimal" placeholder="1000"></label>
+<label id="pFondoL">Fondo o plan (su importe se calcula solo)<select id="pFondo"></select></label>
+<label id="pCosteL">Coste (€)<input id="pCoste" type="number" step="0.01" min="0" inputmode="decimal" placeholder="16000"></label>
+<label id="pPendL">Pendiente de amortización hoy (€)<input id="pPend" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0"></label>
+<label id="pCuotaL">Cuota mensual (opcional: el pendiente baja solo cada mes)<input id="pCuota" type="number" step="0.01" min="0" inputmode="decimal" placeholder="250"></label>
+<label id="pPagL"><input type="checkbox" id="pPag" style="display:inline-block;width:auto;margin:0 6px 0 0;vertical-align:middle">Pagado</label>
+<div id="pErr" role="alert" style="color:var(--bad);min-height:1.2em;font-size:13px;margin-bottom:6px"></div>
+<div class="dlgBtns">
+<button type="button" id="pDel" class="btn2 danger hidden">Eliminar</button>
+<span style="flex:1"></span>
+<button type="button" id="pCancel" class="btn2">Cancelar</button>
+<button type="submit" class="btn sm" id="pSave">Guardar</button>
+</div>
+</form>
+</dialog>
 <dialog id="xDlg">
 <form id="xForm" autocomplete="off">
 <h3 id="xTitulo" style="margin:0 0 6px;font-size:17px">Aportación extraordinaria</h3>
@@ -657,7 +678,7 @@ return j;
 }
 async function ingListar() {
 const [rows, fon, pat] = await Promise.all([rpc('ingresos_listar', { p_codigo:ing.code }), rpc('fondos_listar', { p_codigo:ing.code }), rpc('patrimonio_listar', { p_codigo:ing.code }).catch(() => [])]);
-ing.pat = (pat || []).map(r => ({ id:r.id, tipo:r.tipo, nombre:r.nombre, banco:r.banco || '', orden:r.orden, importe:r.importe == null ? null : Number(r.importe), fondoId:r.fondo_id, coste:r.coste == null ? null : Number(r.coste), pagado:r.pagado, pendiente:r.pendiente == null ? null : Number(r.pendiente), actualizado:r.actualizado }));
+ing.pat = (pat || []).map(r => ({ id:r.id, tipo:r.tipo, nombre:r.nombre, banco:r.banco || '', orden:r.orden, importe:r.importe == null ? null : Number(r.importe), fondoId:r.fondo_id, coste:r.coste == null ? null : Number(r.coste), pagado:r.pagado, pendiente:r.pendiente == null ? null : Number(r.pendiente), actualizado:r.actualizado, cuota:r.cuota == null ? null : Number(r.cuota) }));
 ing.fondos = fon.map(f => ({ id:f.id, clase:f.clase || 'fondo', ref:f.ref_isin || '', historico:Array.isArray(f.historico) ? f.historico : null, nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
 inicial:f.inicial == null ? null : Number(f.inicial), inicialFecha:f.inicial_fecha, baseFecha:f.base_fecha, baseAportado:f.base_aportado == null ? null : Number(f.base_aportado), baseValor:f.base_valor == null ? null : Number(f.base_valor), rent:f.rent_anual == null ? null : Number(f.rent_anual), persona:f.persona }));
 ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso', per:r.periodicidad || 'unica', fin:r.fecha_fin || null, rent:r.rent_anual == null ? null : Number(r.rent_anual), fondoId:r.fondo_id || null }));
@@ -973,6 +994,13 @@ svg.addEventListener('pointermove', mover); svg.addEventListener('pointerdown', 
 svg.addEventListener('pointerleave', () => { $('pCross').classList.add('hidden'); tip.classList.add('hidden'); });
 }
 // Estado financiero: cuentas y bienes son datos guardados; las inversiones se calculan solas (precios reales + aportaciones periódicas).
+const pendienteHoy = p => {   // pendiente guardado menos las cuotas mensuales pagadas desde que se guardó
+if (p.pendiente == null) return 0;
+if (!(p.cuota > 0) || !p.actualizado) return p.pendiente;
+const a = p.actualizado.split('-').map(Number), h = hoyStr().split('-').map(Number);
+const n = Math.max(0, (h[0] - a[0]) * 12 + (h[1] - a[1]) - (h[2] < a[2] ? 1 : 0));
+return Math.max(0, Math.round((p.pendiente - p.cuota * n) * 100) / 100);
+};
 function pintarEstado() {
 ing.fondos.forEach(f => { const e = isinEfectivo(f); if (e) cargarPrecios(e); });
 const fs = modeloFondos(0, null), porId = Object.fromEntries(fs.map(f => [f.id, f]));
@@ -986,17 +1014,59 @@ return { ...p, imp:v, sin:null, inv:null, no:si ? null : v, rend:null, si, auto:
 const T = a => filas.reduce((t, r) => t + (r[a] || 0), 0), totI = T('imp'), totR = T('rend'), totV = T('inv');
 const m = v => v == null ? '' : eur.format(v), pc = v => (v * 100).toLocaleString('es-ES', { minimumFractionDigits:1, maximumFractionDigits:1 }) + ' %';
 const sg = v => `<span class="${v >= 0 ? 'pos' : 'neg'}">${v >= 0 ? '+' : ''}${eur.format(v)}</span>`;
-const f1 = filas.map(r => `<tr><td>${esc(r.nombre)}${r.auto ? `<span class="sub auto">${esc(r.auto)}</span>` : ''}</td><td>${esc(r.banco)}</td><td><b>${m(r.imp)}</b></td><td>${m(r.sin)}</td><td>${m(r.inv)}</td><td>${m(r.no)}</td><td>${r.rend == null ? '' : sg(r.rend)}</td><td>${totI > 0 ? pc(r.imp / totI) : ''}</td><td>${r.inv > 0 ? `<span class="${r.rend >= 0 ? 'pos' : 'neg'}">${pc(r.rend / r.inv)}</span>` : ''}</td><td>${r.si ? 'SÍ' : 'NO'}</td></tr>`).join('');
+const btnPat = id => `<button class="btn2" data-pedit="${esc(id)}" type="button" style="padding:0 7px;font-size:11px;margin-left:4px">Editar</button>`;
+const f1 = filas.map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.auto ? `<span class="sub auto">${esc(r.auto)}</span>` : ''}</td><td>${esc(r.banco)}</td><td><b>${m(r.imp)}</b></td><td>${m(r.sin)}</td><td>${m(r.inv)}</td><td>${m(r.no)}</td><td>${r.rend == null ? '' : sg(r.rend)}</td><td>${totI > 0 ? pc(r.imp / totI) : ''}</td><td>${r.inv > 0 ? `<span class="${r.rend >= 0 ? 'pos' : 'neg'}">${pc(r.rend / r.inv)}</span>` : ''}</td><td>${r.si ? 'SÍ' : 'NO'}</td></tr>`).join('');
 const tot = `<tr class="tot"><td>TOTAL</td><td></td><td>${m(totI)}</td><td>${m(T('sin'))}</td><td>${m(totV)}</td><td>${m(T('no'))}</td><td>${sg(totR)}</td><td>${totI > 0 ? '100,0 %' : ''}</td><td>${totV > 0 ? `<span class="${totR >= 0 ? 'pos' : 'neg'}">${pc(totR / totV)}</span>` : ''}</td><td></td></tr>`;
-const lg = ing.pat.filter(p => p.tipo === 'largo'), tC = lg.reduce((t, r) => t + (r.coste || 0), 0), tP = lg.reduce((t, r) => t + (r.pendiente || 0), 0);
+const lg = ing.pat.filter(p => p.tipo === 'largo'), tC = lg.reduce((t, r) => t + (r.coste || 0), 0), tP = lg.reduce((t, r) => t + pendienteHoy(r), 0);
 const t2 = lg.length ? `<div class="day" style="margin:12px 0 4px">Inversión a largo plazo</div><div class="estW"><table class="est"><thead><tr><th>Inversión a largo</th><th></th><th>Coste</th><th>Pendiente de amortización</th><th>¿Pagado?</th></tr></thead><tbody>`
-+ lg.map(r => `<tr><td>${esc(r.nombre)}</td><td></td><td>${m(r.coste)}</td><td>${m(r.pendiente || 0)}</td><td>${r.pagado ? 'SÍ' : 'NO'}</td></tr>`).join('')
++ lg.map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.cuota > 0 ? `<span class="sub auto">cuota ${eur.format(r.cuota)}/mes · baja sola</span>` : ''}</td><td></td><td>${m(r.coste)}</td><td>${m(pendienteHoy(r))}</td><td>${r.pagado ? 'SÍ' : 'NO'}</td></tr>`).join('')
 + `<tr class="tot"><td>TOTAL</td><td></td><td>${m(tC)}</td><td>${m(tP)}</td><td></td></tr></tbody></table></div>` : '';
 const man = ing.pat.filter(p => !(p.tipo === 'fondo' && porId[p.fondoId])).map(p => p.actualizado).filter(Boolean).sort()[0];
 $('iEstNota').textContent = fs.length ? 'hoy ' + corta(hoyStr()) : '';
 $('iEstB').innerHTML = ing.pat.length ? `<div class="estW"><table class="est"><thead><tr><th>Nombre</th><th>Banco</th><th>Importe</th><th>Total sin rendimientos</th><th>Invertido</th><th>No inversión</th><th>Rendimiento</th><th>Ponderación</th><th>Rentabilidad</th><th>¿Invertido?</th></tr></thead><tbody>${f1}${tot}</tbody></table></div>${t2}
 <div class="c" style="font-size:11.5px;color:var(--ink3);margin-top:6px">Las inversiones («automático») se recalculan solas con los precios reales y tus aportaciones periódicas. Cuentas y bienes son datos guardados${man ? ' (última actualización: ' + fmtF(man) + ')' : ''}.</div>`
 : '<div class="empty">Aún no hay datos del estado financiero.</div>';
+}
+function tipoPat() {   // muestra solo los campos que corresponden al tipo de fila
+const t = $('pTipo').value;
+$('pBancoL').classList.toggle('hidden', t === 'largo'); $('pImpL').classList.toggle('hidden', t !== 'cuenta'); $('pFondoL').classList.toggle('hidden', t !== 'fondo');
+['pCosteL', 'pPendL', 'pCuotaL', 'pPagL'].forEach(i => $(i).classList.toggle('hidden', t !== 'largo'));
+}
+function abrirPat(id) {
+const p = id ? ing.pat.find(x => x.id === id) : null;
+ing.patId = p ? p.id : null; ing.patOrden = p ? p.orden : (ing.pat.reduce((m, x) => Math.max(m, x.orden), 0) + 10);
+$('pTitulo').textContent = p ? 'Editar fila' : 'Añadir fila';
+$('pTipo').value = p ? p.tipo : 'cuenta'; $('pTipo').disabled = !!p;
+$('pNombre').value = p ? p.nombre : ''; $('pBanco').value = p ? p.banco : '';
+$('pImp').value = p && p.importe != null ? p.importe : '';
+$('pFondo').innerHTML = ing.fondos.map(f => `<option value="${esc(f.id)}">${esc(f.nombre)}</option>`).join('');
+if (p && p.fondoId) $('pFondo').value = p.fondoId;
+$('pCoste').value = p && p.coste != null ? p.coste : '';
+$('pPend').value = p && p.tipo === 'largo' ? pendienteHoy(p) : '';
+$('pCuota').value = p && p.cuota != null ? p.cuota : '';
+$('pPag').checked = p ? !!p.pagado : true;
+$('pDel').classList.toggle('hidden', !p); $('pErr').textContent = '';
+tipoPat();
+$('pDlg').showModal();
+}
+async function guardarPat(e) {
+e.preventDefault();
+const t = $('pTipo').value, nombre = $('pNombre').value.trim(), nv = id => $(id).value === '' ? null : Math.round(parseFloat($(id).value) * 100) / 100, err = m => { $('pErr').textContent = m; };
+if (!nombre) return err('Indica un nombre.');
+const a = { p_codigo:ing.code, p_id:ing.patId || crypto.randomUUID(), p_tipo:t, p_nombre:nombre, p_banco:t === 'largo' ? '' : $('pBanco').value.trim(), p_orden:ing.patOrden,
+p_importe:null, p_fondo_id:null, p_coste:null, p_pagado:null, p_pendiente:null, p_cuota:null };
+if (t === 'cuenta') { a.p_importe = nv('pImp'); if (a.p_importe === null || isNaN(a.p_importe)) return err('Indica el importe actual.'); }
+else if (t === 'fondo') { a.p_fondo_id = $('pFondo').value || null; if (!a.p_fondo_id) return err('Primero crea el fondo o plan en la pestaña Inversión.'); }
+else { a.p_coste = nv('pCoste'); a.p_pendiente = nv('pPend') ?? 0; a.p_cuota = nv('pCuota'); a.p_pagado = $('pPag').checked; if (a.p_coste === null) return err('Indica el coste.'); if (a.p_cuota !== null && !(a.p_cuota > 0)) return err('La cuota debe ser mayor que 0.'); }
+$('pSave').disabled = true;
+const ok = await ingOp(() => rpc('patrimonio_guardar', a));
+$('pSave').disabled = false;
+if (ok || ing.estado !== 'ok') $('pDlg').close(); else err(ing.msg);
+}
+async function borrarPat() {
+if (!ing.patId || !confirm('¿Eliminar esta fila del estado financiero? No se puede deshacer.')) return;
+const ok = await ingOp(() => rpc('patrimonio_borrar', { p_codigo:ing.code, p_id:ing.patId }));
+if (ok || ing.estado !== 'ok') $('pDlg').close(); else $('pErr').textContent = ing.msg;
 }
 function avisoExtra() {
 const f = ing.fondos.find(x => x.id === ing.extraFondo), d = $('xFecha').value;
@@ -1134,7 +1204,8 @@ const verRes = res && ing.estado === 'ok' && vistaFan(), estado = verRes && ing.
 $('rSub').classList.toggle('hidden', !verRes); $('iEst').classList.toggle('hidden', !estado); $('iGran').classList.toggle('hidden', estado);
 document.querySelectorAll('#rSub button').forEach(b => b.setAttribute('aria-pressed', b.dataset.r === (estado ? 'estado' : 'graf')));
 $('iAdd').disabled = ing.estado !== 'ok'; $('iAdd').textContent = !res && ing.sub === 'planes' ? '+ Nuevo plan' : X.add;
-$('iAdd').classList.toggle('hidden', (!res && ing.sub === 'resumen') || estado);   // el resumen de inversiones solo se consulta
+$('iAdd').classList.toggle('hidden', !res && ing.sub === 'resumen');
+if (estado) $('iAdd').textContent = '+ Añadir fila';   // el resumen de inversiones solo se consulta
 $('iChange').classList.toggle('hidden', ing.estado !== 'ok');
 $('iListT').textContent = X.lista;
 const modoFondos = !res && ['fondos', 'planes', 'resumen'].includes(ing.sub) && ing.estado === 'ok';
@@ -1494,7 +1565,7 @@ $('iWho').addEventListener('click', e => { const b = e.target.closest('button');
 $('iGran').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.gran = b.dataset.g; LSset('iGran', ing.gran); ing.selKey = null; ing.fresh = true; pintarIng(); } });
 $('iPrevY').onclick = () => { ing.anio = String(+ing.anio - 1); ing.selKey = null; ing.fresh = true; pintarIng(); };
 $('iNextY').onclick = () => { ing.anio = String(+ing.anio + 1); ing.selKey = null; ing.fresh = true; pintarIng(); };
-$('iAdd').onclick = () => modoIng() === 'inversion' ? abrirFondo(null, ing.sub === 'planes' ? 'plan' : 'fondo') : abrirIng(null);
+$('iAdd').onclick = () => (modoIng() === 'ingreso' && ing.rsub === 'estado' && vistaFan()) ? abrirPat(null) : modoIng() === 'inversion' ? abrirFondo(null, ing.sub === 'planes' ? 'plan' : 'fondo') : abrirIng(null);
 $('iChange').onclick = cambiarCodigo;
 $('iRows').addEventListener('submit', e => { if (e.target.id === 'iCodeForm') enviarCodigo(e); });
 $('iRows').addEventListener('click', e => {
@@ -1526,6 +1597,11 @@ let thv; $('vHist').addEventListener('input', () => { clearTimeout(thv); thv = s
 $('vHistF').addEventListener('change', () => { const f = $('vHistF').files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { $('vHist').value = String(r.result || ''); leerHistorico(); }; r.readAsText(f); });
 $('vHistQuitar').onclick = () => { ing.histQuitar = true; ing.histTmp = null; $('vHist').value = ''; $('vHistInfo').textContent = 'Se quitará el histórico guardado al pulsar Guardar.'; };
 $('vDel').onclick = borrarFondo;
+$('iEstB').addEventListener('click', e => { const b = e.target.closest('[data-pedit]'); if (b) abrirPat(b.dataset.pedit); });
+$('pForm').addEventListener('submit', guardarPat);
+$('pCancel').onclick = () => $('pDlg').close();
+$('pDel').onclick = borrarPat;
+$('pTipo').addEventListener('change', tipoPat);
 $('xForm').addEventListener('submit', guardarExtra);
 $('xCancel').onclick = () => $('xDlg').close();
 $('xDel').onclick = borrarExtra;
