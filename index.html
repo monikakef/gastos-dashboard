@@ -121,6 +121,10 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 #iTitle { align-items:flex-start; } #iTitle > span:first-child { white-space:nowrap; } #iTitle .legend { justify-content:flex-end; }
 #ing .tile .label { font-size:11.5px; }
 #ing .row { cursor:pointer; }
+.fRow { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
+.vbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 6px; }
+.vbar .seg button { padding:3px 10px; font-size:12px; }
+.dsel { display:flex; gap:6px; align-items:center; } .dsel .btn2 { padding:3px 12px; font-size:15px; } .dsel .sort { font-size:13px; }
 .m.pos, .pos { color:var(--good); } .neg { color:var(--bad); }
 dialog { background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:16px; padding:16px; width:min(92vw,380px); }
 dialog { max-height:92vh; overflow:auto; }
@@ -165,6 +169,10 @@ grid-template-areas:"hero chart chart" "comp cats list"; }
 #ing { max-width:1280px; }
 #ing .sagRow .sagChart { flex:3.4; }
 #ing .sagRow .catsCard { flex:1; min-width:240px; max-width:300px; }
+/* Inversión (fondos, planes, resumen): lista a la izquierda y gráfica alta a la derecha. */
+.fRow { flex-direction:row; gap:10px; }
+.fRow #iFondos { flex:0 0 38% !important; max-height:none !important; min-width:0; }
+.fRow #iProy { flex:1 !important; min-width:0; }
 }
 /* Móvil: la página se desplaza; gráficas y listas de movimientos más grandes (las listas con su propio scroll). */
 @media (max-width:899.98px) {
@@ -183,7 +191,8 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 .hbody .hscroll { flex:none; height:360px; }
 .hside { flex:none; height:480px; min-height:0; }
 #iFondos { max-height:none !important; }
-#iProy { flex:none !important; height:460px; min-height:0 !important; }
+#iProy { flex:none !important; height:520px; min-height:0 !important; }
+.fRow { flex:none; }
 }
 </style>
 </head>
@@ -270,16 +279,20 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <div class="tile"><div class="label" id="iT5L"></div><div class="v num" id="iT5"></div></div>
 </div>
 </section>
+<div class="fRow hidden" id="iFRow">
 <section class="card hidden" id="iFondos" style="flex:none;max-height:36%;overflow:auto">
 <h2><span id="iFondosT">Fondos · valor estimado hoy</span><span class="label" id="iFondosNota"></span></h2>
 <div id="iFondosL"></div>
 </section>
 <section class="card hidden" id="iProy" style="flex:1;min-height:170px">
-<h2><span>Evolución y proyección</span><select class="sort" id="iHor" aria-label="Años de proyección"><option value="5">5 años</option><option value="10">10 años</option><option value="20">20 años</option><option value="30">30 años</option></select></h2>
+<h2><span id="iProyT">Evolución y proyección</span><select class="sort" id="iHor" aria-label="Años de proyección"><option value="5">5 años</option><option value="10">10 años</option><option value="20">20 años</option><option value="30">30 años</option></select></h2>
+<div class="vbar"><div class="seg" id="iVista" role="group" aria-label="Tipo de vista"><button data-vi="mes" aria-pressed="true">Evolución</button><button data-vi="dia" aria-pressed="false">Día a día</button></div>
+<div class="dsel hidden" id="iDia"><button id="iDPrev" type="button" class="btn2" aria-label="Mes anterior">‹</button><select class="sort" id="iDM" aria-label="Mes"></select><select class="sort" id="iDA" aria-label="Año"></select><button id="iDNext" type="button" class="btn2" aria-label="Mes siguiente">›</button></div></div>
 <div class="delta" id="iProyRes" style="margin:0 0 4px"></div>
-<div class="legend" style="margin-bottom:4px"><span><i style="border-top:2.5px solid var(--s1)"></i>valor</span><span><i style="border-top:2px solid var(--ink3)"></i>aportado</span><span><i style="border-top:2.5px solid var(--good)"></i>beneficio (interés compuesto)</span><span style="color:var(--ink3)">- - proyección</span></div>
+<div class="legend" id="iLeg" style="margin-bottom:4px"><span><i style="border-top:2.5px solid var(--s1)"></i>valor</span><span><i style="border-top:2px solid var(--ink3)"></i>aportado</span><span><i style="border-top:2.5px solid var(--good)"></i>beneficio (interés compuesto)</span><span style="color:var(--ink3)">- - proyección</span></div>
 <div id="iProyBox" style="flex:1;min-height:0;position:relative"></div>
 </section>
+</div>
 <div class="sagRow">
 <section class="card sagChart">
 <h2 id="iTitle"></h2>
@@ -615,7 +628,7 @@ setView();
 }
 /* ---------- Resumen e Inversión: filas en Supabase, protegidas con un código de acceso propio ---------- */
 const SB = { url:'https://gzewqeoqsgoljzuglwpc.supabase.co', key:'sb_publishable_d2gsiwOPJwDyoKoIjgKIvA_WbVyoBJf' };
-const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null };
+const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null, vista:LS('iVista') === 'dia' ? 'dia' : 'mes', diaMes:null };
 const TOPE_RESUMEN = 5000;   // máximo visible en la gráfica mes a mes del Resumen (€)
 const modoIng = () => sag.view === 'inv' ? 'inversion' : 'ingreso';  // la pestaña Resumen gestiona ingresos; Inversión, inversiones
 const CATS_ING = { ingreso:['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'],
@@ -704,7 +717,7 @@ return out;
 // Con el histórico de precios (Yahoo, vía función de Supabase) se calculan las participaciones de partida (valor / precio de esa fecha) y las
 // de cada aportación posterior (importe / precio de su día); el valor de cualquier día es participaciones × precio. Sin situación conocida,
 // se reconstruye todo desde la primera aportación. La proyección mantiene la rentabilidad media anual y las aportaciones.
-const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
+const ISIN_RE = /^(?:[A-Z]{2}[A-Z0-9]{9}[0-9]|0P[A-Z0-9]{8})$/;   // ISIN, o identificador de Morningstar (0P…) para planes sin ISIN
 const precios = {};   // ISIN -> { estado:'cargando'|'ok'|'error', serie:[[fecha, precio]], ticker, nombre, moneda, msg }
 const uUTC = s => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
 const diasEntre = (a, b) => (uUTC(b) - uUTC(a)) / 864e5;
@@ -856,7 +869,7 @@ const vacio = resumen ? 'Aún no hay fondos ni planes. Añádelos en las pestañ
 : clase === 'plan' ? 'Pulsa «+ Nuevo plan» e indica su nombre y, si quieres, su código (el de la DGS, no un ISIN), tu aportación inicial y/o cuánto aportas cada mes y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Si no encuentro precios, lo estimo con la rentabilidad que indiques.'
 : 'Pulsa «+ Nuevo fondo» e indica su ISIN, tu aportación inicial y/o cuánto aportas cada mes (la periódica es opcional) y, si lo sabes, cuánto has aportado ya y cuánto vale hoy. Busco los precios, estimo su valor de hoy y proyecto su evolución.';
 $('iFondosL').innerHTML = cab + (fs.length ? fs.map(f => {
-const sinPrecios = (f.codigo ? 'código no ISIN: sin precios online' : f.clase === 'plan' ? 'sin código' : 'sin ISIN') + (f.r ? ' · estimación con la rentabilidad indicada' : ' · sin crecimiento: indica una rentabilidad anual' + (f.clase === 'plan' ? ', un fondo de referencia o importa su histórico' : '') + ' (Editar)');
+const sinPrecios = (f.codigo ? 'código sin precios online (usa el ISIN o el ID de Morningstar 0P…)' : f.clase === 'plan' ? 'sin código' : 'sin ISIN') + (f.r ? ' · estimación con la rentabilidad indicada' : ' · sin crecimiento: indica una rentabilidad anual' + (f.clase === 'plan' ? ', un fondo de referencia o importa su histórico' : '') + ' (Editar)');
 const viejo = f.px && f.px.importado && diasEntre(f.fechaNav, hoyStr()) > 10;
 const precio = f.px && f.px.importado ? `VL importado ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:4 })} € (${corta(f.fechaNav)})${viejo ? ' · histórico desactualizado: vuelve a importarlo' : ''}` : !f.isin ? sinPrecios : f.px ? `${f.viaRef ? 'Siguiendo el fondo ' + esc(f.isin) + ' · ' : ''}VL ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:2 })} € (${corta(f.fechaNav)})`
 : f.pxEstado === 'error' ? `sin precios (${esc(f.pxMsg || 'error')}) · <a href="#" data-retry="${esc(f.isin)}" style="color:var(--s1)">reintentar</a>` : 'buscando precios…';
@@ -877,27 +890,58 @@ return `<div class="row" data-fondo="${esc(f.nombre)}" style="cursor:pointer;${i
 function pintarProy() {
 const fs = modeloFondos(+ing.horizonte, claseSub()), sel = ing.fondoSel ? fs.filter(f => norm(f.nombre) === ing.fondoSel) : fs, box = $('iProyBox');
 $('iHor').value = ing.horizonte;
+const dia = ing.vista === 'dia';
+document.querySelectorAll('#iVista button').forEach(b => b.setAttribute('aria-pressed', b.dataset.vi === ing.vista));
+$('iDia').classList.toggle('hidden', !dia); $('iHor').classList.toggle('hidden', dia);
+const lg = $('iLeg').children; lg[2].style.display = lg[3].style.display = dia ? 'none' : '';
+$('iProyT').textContent = dia ? 'Valor día a día' : 'Evolución y proyección';
+if (dia) poblarDia();
 if (!sel.length) { box.innerHTML = `<div class="empty">${ing.sub === 'planes' ? 'Añade un plan de pensiones' : 'Añade un fondo'} para ver la evolución y la proyección.</div>`; $('iProyRes').innerHTML = ''; return; }
+if (dia) { pintarDia(sel, box); return; }
 const S = serieFondos(sel, +ing.horizonte), n = S.V.length - 1, h = S.iHoy, tot = sel.reduce((s, f) => s + f.hoy, 0);
 const rPond = tot > 0 ? sel.reduce((s, f) => s + f.r * f.hoy, 0) / tot : 0;
 $('iProyRes').innerHTML = `Hoy <b>${eur0.format(S.V[h])}</b> (beneficio <span class="${S.B[h] >= 0 ? 'pos' : 'neg'}">${eur0.format(S.B[h])}</span>) · en ${ing.horizonte} años ≈ <b>${eur0.format(S.V[n])}</b>: aportado ${eur0.format(S.C[n])}, beneficio <span class="pos">${eur0.format(S.B[n])}</span> · con ${(rPond * 100).toLocaleString('es-ES', { maximumFractionDigits:1 })} %/año`;
 dibujarProy(box, S);
 }
+const mesMax = () => hoyStr().slice(0, 7), mesMin = () => INI_GRAFICA.slice(0, 7);
+function ajustarMes(m) { return m > mesMax() ? mesMax() : m < mesMin() ? mesMin() : m; }
+function poblarDia() {   // rellena los selectores de mes y año con lo que tiene datos
+ing.diaMes = ajustarMes(ing.diaMes || mesMax());
+const [y, m] = ing.diaMes.split('-'), A = $('iDA'), M = $('iDM');
+if (A.options.length !== +mesMax().slice(0, 4) - +mesMin().slice(0, 4) + 1) A.innerHTML = Array.from({ length:+mesMax().slice(0, 4) - +mesMin().slice(0, 4) + 1 }, (_, k) => { const a = +mesMin().slice(0, 4) + k; return `<option value="${a}">${a}</option>`; }).join('');
+if (!M.options.length) M.innerHTML = Array.from({ length:12 }, (_, k) => `<option value="${String(k + 1).padStart(2, '0')}">${capital(new Date(2025, k, 1).toLocaleDateString('es-ES', { month:'long' }))}</option>`).join('');
+A.value = y; M.value = m;
+[...M.options].forEach(o => { const k = y + '-' + o.value; o.disabled = k < mesMin() || k > mesMax(); });
+$('iDPrev').disabled = ing.diaMes <= mesMin(); $('iDNext').disabled = ing.diaMes >= mesMax();
+}
+function pintarDia(sel, box) {   // un punto por día del mes elegido (hasta hoy)
+const hoy = hoyStr(), [ay, am] = ing.diaMes.split('-').map(Number), G = [];
+for (let k = 1, ult = new Date(ay, am, 0).getDate(); k <= ult; k++) { const d = ing.diaMes + '-' + String(k).padStart(2, '0'); if (d > hoy) break; G.push(d); }
+const V = G.map(d => sel.reduce((t, f) => t + f.valor(d), 0)), C = G.map(d => sel.reduce((t, f) => t + f.cont(d), 0)), B = V.map((v, i) => v - C[i]);
+const n = G.length, d00 = sumarDias(G[0], -1), v00 = sel.reduce((t, f) => t + f.valor(d00), 0), b00 = v00 - sel.reduce((t, f) => t + f.cont(d00), 0);
+const camb = B[n - 1] - b00, nav = sel.map(f => f.fechaNav).filter(Boolean).sort().pop();
+const corta = d => new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' });
+$('iProyRes').innerHTML = `${capital(new Date(ay, am - 1, 1).toLocaleDateString('es-ES', { month:'long', year:'numeric' }))}: <b>${eur.format(V[n - 1])}</b> el ${corta(G[n - 1])} · beneficio del mes <span class="${camb >= 0 ? 'pos' : 'neg'}">${camb >= 0 ? '+' : ''}${eur.format(camb)}${v00 > 0 ? ' (' + (camb >= 0 ? '+' : '') + (camb / v00 * 100).toLocaleString('es-ES', { maximumFractionDigits:1 }) + ' %)' : ''}</span> · aportado ${eur0.format(C[n - 1])}${nav ? ' · último VL publicado: ' + corta(nav) : ''}`;
+dibujarProy(box, { G, iHoy:n - 1, V, C, B, diario:true });
+}
 function dibujarProy(box, S) {
-const { G, iHoy, V, C, B } = S, n = G.length;
+const { G, iHoy, V, C, B } = S, n = G.length, dia = !!S.diario;
 const W = Math.max(box.clientWidth, 220), H = Math.max(box.clientHeight, 150), L = 46, R = 8, T = 8, Bm = 20;
-const mn = Math.min(0, ...B), mx = Math.max(...V, ...C, 1) * 1.04;
-const x = i => L + i / (n - 1) * (W - L - R), y = v => T + (1 - (v - mn) / (mx - mn)) * (H - T - Bm);
+let mn = Math.min(0, ...B), mx = Math.max(...V, ...C, 1) * 1.04;
+if (dia) { const lo = Math.min(...V, ...C), hi = Math.max(...V, ...C), pad = Math.max((hi - lo) * .15, hi * .005, 1); mn = Math.max(0, lo - pad); mx = hi + pad; }
+const x = i => L + (n > 1 ? i / (n - 1) : .5) * (W - L - R), y = v => T + (1 - (v - mn) / (mx - mn)) * (H - T - Bm);
 const step = niceStep((mx - mn) / Math.max(2, Math.floor((H - T - Bm) / 36)));
-const fk = v => Math.abs(v) >= 1000 ? (v / 1000).toLocaleString('es-ES', { maximumFractionDigits:1 }) + ' k' : String(Math.round(v));
+const fk = v => dia ? Math.round(v).toLocaleString('es-ES') : Math.abs(v) >= 1000 ? (v / 1000).toLocaleString('es-ES', { maximumFractionDigits:1 }) + ' k' : String(Math.round(v));
 let g = '';
 for (let v = Math.ceil(mn / step) * step; v <= mx; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${v === 0 ? 'var(--ink3)' : 'var(--grid)'}"/><text x="${L - 5}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" font-size="10.5" fill="var(--ink3)">${fk(v)}</text>`;
 const nl = Math.min(6, Math.max(2, Math.floor((W - L - R) / 70)));
-for (let k = 0; k < nl; k++) { const i = Math.round(k * (n - 1) / (nl - 1)); g += `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="${k === 0 ? 'start' : k === nl - 1 ? 'end' : 'middle'}" font-size="10.5" fill="var(--ink3)">${G[i].slice(0, 4)}</text>`; }
+if (dia) { const cada = Math.max(1, Math.ceil(34 / ((W - L - R) / Math.max(1, n - 1)))); for (let i = 0; i < n; i += cada) g += `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="10.5" fill="var(--ink3)">${+G[i].slice(8)}</text>`; }
+else for (let k = 0; k < nl; k++) { const i = Math.round(k * (n - 1) / (nl - 1)); g += `<text x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="${k === 0 ? 'start' : k === nl - 1 ? 'end' : 'middle'}" font-size="10.5" fill="var(--ink3)">${G[i].slice(0, 4)}</text>`; }
 const tramo = (arr, a, b) => arr.slice(a, b + 1).map((v, j) => (j ? 'L' : 'M') + x(a + j).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
 const linea = (arr, color, w) => `<path d="${tramo(arr, 0, iHoy)}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linejoin="round"/>` + (iHoy < n - 1 ? `<path d="${tramo(arr, iHoy, n - 1)}" fill="none" stroke="${color}" stroke-width="${w}" stroke-dasharray="6 4" stroke-linejoin="round"/>` : '');
-g += linea(C, 'var(--ink3)', 1.8) + linea(V, 'var(--s1)', 2.6) + linea(B, 'var(--good)', 2.6);
-g += `<line x1="${x(iHoy).toFixed(1)}" x2="${x(iHoy).toFixed(1)}" y1="${T}" y2="${H - Bm}" stroke="var(--ink3)" stroke-dasharray="2 3"/><text x="${(x(iHoy) + 4).toFixed(1)}" y="${T + 10}" font-size="10.5" fill="var(--ink2)">hoy</text>`;
+if (dia) g += linea(C, 'var(--ink3)', 1.8) + linea(V, 'var(--s1)', 2.6) + V.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${n > 20 ? 2.2 : 3}" fill="var(--s1)"/>`).join('');
+else g += linea(C, 'var(--ink3)', 1.8) + linea(V, 'var(--s1)', 2.6) + linea(B, 'var(--good)', 2.6);
+if (!dia) g += `<line x1="${x(iHoy).toFixed(1)}" x2="${x(iHoy).toFixed(1)}" y1="${T}" y2="${H - Bm}" stroke="var(--ink3)" stroke-dasharray="2 3"/><text x="${(x(iHoy) + 4).toFixed(1)}" y="${T + 10}" font-size="10.5" fill="var(--ink2)">hoy</text>`;
 g += `<g id="pCross" class="hidden"><line id="pCl" y1="${T}" y2="${H - Bm}" stroke="var(--ink2)" stroke-dasharray="3 3"/></g>`;
 box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolución y proyección del valor, lo aportado y el beneficio" style="display:block;touch-action:pan-y">${g}</svg><div id="pTip" class="hidden" style="position:absolute;top:0;pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:5px 9px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.18);white-space:nowrap;line-height:1.4"></div>`;
 const svg = box.querySelector('svg'), tip = $('pTip');
@@ -905,7 +949,8 @@ const mover = ev => {
 const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) / r.width * W;
 const i = Math.max(0, Math.min(n - 1, Math.round((px - L) / (W - L - R) * (n - 1))));
 $('pCross').classList.remove('hidden'); $('pCl').setAttribute('x1', x(i)); $('pCl').setAttribute('x2', x(i));
-tip.innerHTML = `<b>${new Date(G[i] + 'T12:00:00').toLocaleDateString('es-ES', { month:'short', year:'numeric' })}</b>${i > iHoy ? ' · proyección' : ''}<br>Valor ${eur0.format(V[i])}<br><span style="color:var(--ink2)">Aportado ${eur0.format(C[i])}</span><br><span class="${B[i] >= 0 ? 'pos' : 'neg'}">Beneficio ${eur0.format(B[i])}</span>`;
+const e = dia ? eur : eur0;
+tip.innerHTML = `<b>${new Date(G[i] + 'T12:00:00').toLocaleDateString('es-ES', dia ? { weekday:'short', day:'numeric', month:'short', year:'numeric' } : { month:'short', year:'numeric' })}</b>${i > iHoy ? ' · proyección' : ''}<br>Valor ${e.format(V[i])}<br><span style="color:var(--ink2)">Aportado ${e.format(C[i])}</span><br><span class="${B[i] >= 0 ? 'pos' : 'neg'}">Beneficio ${e.format(B[i])}</span>`;
 tip.classList.remove('hidden');
 tip.style.left = Math.min(Math.max(x(i) / W * r.width - 50, 0), r.width - 130) + 'px';
 };
@@ -1051,7 +1096,7 @@ $('iListT').textContent = X.lista;
 const modoFondos = !res && ['fondos', 'planes', 'resumen'].includes(ing.sub) && ing.estado === 'ok';
 $('iSub').classList.toggle('hidden', res || ing.estado !== 'ok');
 document.querySelectorAll('#iSub button').forEach(b => b.setAttribute('aria-pressed', b.dataset.s === ing.sub));
-['iFondos', 'iProy'].forEach(i => $(i).classList.toggle('hidden', !modoFondos));
+['iFRow', 'iFondos', 'iProy'].forEach(i => $(i).classList.toggle('hidden', !modoFondos));
 document.querySelector('#ing > .hero').classList.toggle('hidden', modoFondos);
 document.querySelector('#ing > .sagRow').classList.toggle('hidden', modoFondos);
 if (ing.estado === 'idle') { ingCargar(); return; }
@@ -1421,8 +1466,14 @@ const ed = e.target.closest('[data-edit]'); if (ed) { abrirFondo(ed.dataset.edit
 const r = e.target.closest('[data-fondo]'); if (r) { const k = norm(r.dataset.fondo); ing.fondoSel = ing.fondoSel === k ? null : k; pintarIng(); }  // tocar un fondo = ver solo ese en la gráfica; otra vez = todos
 });
 $('iSub').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.sub = b.dataset.s; LSset('iSub', ing.sub); ing.fondoSel = null; pintarIng(); } });
+document.querySelectorAll('#iVista button').forEach(b => b.addEventListener('click', () => { ing.vista = b.dataset.vi; LSset('iVista', ing.vista); pintarProy(); }));
+const irMes = m => { ing.diaMes = ajustarMes(m); pintarProy(); };
+$('iDM').addEventListener('change', () => irMes($('iDA').value + '-' + $('iDM').value));
+$('iDA').addEventListener('change', () => irMes($('iDA').value + '-' + ($('iDM').value || '01')));
+$('iDPrev').addEventListener('click', () => irMes(sumarMeses(ing.diaMes + '-01', -1).slice(0, 7)));
+$('iDNext').addEventListener('click', () => irMes(sumarMeses(ing.diaMes + '-01', 1).slice(0, 7)));
 $('iHor').addEventListener('change', () => { ing.horizonte = $('iHor').value; LSset('iHor', ing.horizonte); pintarIng(); });
-let rzp; new ResizeObserver(() => { clearTimeout(rzp); rzp = setTimeout(() => { if (sag.view === 'inv' && ing.estado === 'ok' && ing.sub === 'fondos') pintarProy(); }, 80); }).observe($('iProyBox'));
+let rzp; new ResizeObserver(() => { clearTimeout(rzp); rzp = setTimeout(() => { if (sag.view === 'inv' && ing.estado === 'ok' && ['fondos', 'planes', 'resumen'].includes(ing.sub)) pintarProy(); }, 80); }).observe($('iProyBox'));
 $('vForm').addEventListener('submit', guardarFondo);
 $('vCancel').onclick = () => $('vDlg').close();
 let thv; $('vHist').addEventListener('input', () => { clearTimeout(thv); thv = setTimeout(leerHistorico, 350); });
