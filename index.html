@@ -129,6 +129,7 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .est th:first-child, .est td:first-child, .est th:nth-child(2), .est td:nth-child(2) { text-align:left; }
 .est td:first-child { white-space:normal; min-width:130px; }
 .est tr.tot td { font-weight:700; border-top:1px solid var(--line); border-bottom:0; }
+.est th.ord { cursor:pointer; user-select:none; } .est th.ord:hover { color:var(--ink); }
 .est .sub { display:block; font-size:11px; color:var(--ink3); font-weight:400; }
 .est .auto { color:var(--s1); }
 .vbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 6px; }
@@ -327,6 +328,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <label id="pCosteL">Coste (€)<input id="pCoste" type="number" step="0.01" min="0" inputmode="decimal" placeholder="16000"></label>
 <label id="pPendL">Pendiente de amortización hoy (€)<input id="pPend" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0"></label>
 <label id="pCuotaL">Cuota mensual (opcional: el pendiente baja solo cada mes)<input id="pCuota" type="number" step="0.01" min="0" inputmode="decimal" placeholder="250"></label>
+<label id="pOrigenL"><input type="checkbox" id="pOrigen" style="display:inline-block;width:auto;margin:0 6px 0 0;vertical-align:middle">Coste = total gastado en Sagunto (automático)</label>
 <label id="pPagL"><input type="checkbox" id="pPag" style="display:inline-block;width:auto;margin:0 6px 0 0;vertical-align:middle">Pagado</label>
 <div id="pErr" role="alert" style="color:var(--bad);min-height:1.2em;font-size:13px;margin-bottom:6px"></div>
 <div class="dlgBtns">
@@ -663,7 +665,7 @@ setView();
 }
 /* ---------- Resumen e Inversión: filas en Supabase, protegidas con un código de acceso propio ---------- */
 const SB = { url:'https://gzewqeoqsgoljzuglwpc.supabase.co', key:'sb_publishable_d2gsiwOPJwDyoKoIjgKIvA_WbVyoBJf' };
-const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null, pat:[], rsub:LS('rSub') === 'estado' ? 'estado' : 'graf', vista:LS('iVista') === 'dia' ? 'dia' : 'mes', diaMes:null };
+const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null, pat:[], est:{ main:{ k:null, d:1 }, lg:{ k:null, d:1 }, sim:{ k:null, d:1 } }, simF:LS('simF') || '2028-05-06', rsub:LS('rSub') === 'estado' ? 'estado' : 'graf', vista:LS('iVista') === 'dia' ? 'dia' : 'mes', diaMes:null };
 const TOPE_RESUMEN = 5000;   // máximo visible en la gráfica mes a mes del Resumen (€)
 const modoIng = () => sag.view === 'inv' ? 'inversion' : 'ingreso';  // la pestaña Resumen gestiona ingresos; Inversión, inversiones
 const CATS_ING = { ingreso:['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'],
@@ -678,7 +680,7 @@ return j;
 }
 async function ingListar() {
 const [rows, fon, pat] = await Promise.all([rpc('ingresos_listar', { p_codigo:ing.code }), rpc('fondos_listar', { p_codigo:ing.code }), rpc('patrimonio_listar', { p_codigo:ing.code }).catch(() => [])]);
-ing.pat = (pat || []).map(r => ({ id:r.id, tipo:r.tipo, nombre:r.nombre, banco:r.banco || '', orden:r.orden, importe:r.importe == null ? null : Number(r.importe), fondoId:r.fondo_id, coste:r.coste == null ? null : Number(r.coste), pagado:r.pagado, pendiente:r.pendiente == null ? null : Number(r.pendiente), actualizado:r.actualizado, cuota:r.cuota == null ? null : Number(r.cuota) }));
+ing.pat = (pat || []).map(r => ({ id:r.id, tipo:r.tipo, nombre:r.nombre, banco:r.banco || '', orden:r.orden, importe:r.importe == null ? null : Number(r.importe), fondoId:r.fondo_id, coste:r.coste == null ? null : Number(r.coste), pagado:r.pagado, pendiente:r.pendiente == null ? null : Number(r.pendiente), actualizado:r.actualizado, cuota:r.cuota == null ? null : Number(r.cuota), origen:r.origen || null }));
 ing.fondos = fon.map(f => ({ id:f.id, clase:f.clase || 'fondo', ref:f.ref_isin || '', historico:Array.isArray(f.historico) ? f.historico : null, nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
 inicial:f.inicial == null ? null : Number(f.inicial), inicialFecha:f.inicial_fecha, baseFecha:f.base_fecha, baseAportado:f.base_aportado == null ? null : Number(f.base_aportado), baseValor:f.base_valor == null ? null : Number(f.base_valor), rent:f.rent_anual == null ? null : Number(f.rent_anual), persona:f.persona }));
 ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso', per:r.periodicidad || 'unica', fin:r.fecha_fin || null, rent:r.rent_anual == null ? null : Number(r.rent_anual), fondoId:r.fondo_id || null }));
@@ -994,20 +996,44 @@ svg.addEventListener('pointermove', mover); svg.addEventListener('pointerdown', 
 svg.addEventListener('pointerleave', () => { $('pCross').classList.add('hidden'); tip.classList.add('hidden'); });
 }
 // Estado financiero: cuentas y bienes son datos guardados; las inversiones se calculan solas (precios reales + aportaciones periódicas).
-const pendienteHoy = p => {   // pendiente guardado menos las cuotas mensuales pagadas desde que se guardó
+const pendienteEn = (p, fecha) => {   // pendiente guardado menos las cuotas mensuales pagadas entre que se guardó y la fecha dada
 if (p.pendiente == null) return 0;
 if (!(p.cuota > 0) || !p.actualizado) return p.pendiente;
-const a = p.actualizado.split('-').map(Number), h = hoyStr().split('-').map(Number);
+const a = p.actualizado.split('-').map(Number), h = fecha.split('-').map(Number);
 const n = Math.max(0, (h[0] - a[0]) * 12 + (h[1] - a[1]) - (h[2] < a[2] ? 1 : 0));
 return Math.max(0, Math.round((p.pendiente - p.cuota * n) * 100) / 100);
 };
+const pendienteHoy = p => pendienteEn(p, hoyStr());
+const costeLargo = p => p.origen === 'sagunto' && DATA.sagunto ? Math.round(sag.items.reduce((t, x) => t + x.total, 0) * 100) / 100 : (p.coste || 0);   // Casa Puerto = total gastado en Sagunto
+function valorFuturo(F, fecha) {   // valor de una inversión en una fecha futura: rentabilidad media + aportaciones periódicas (como en la pestaña Inversión)
+const hoy = hoyStr(); if (fecha <= hoy) return F.hoy;
+const g = Math.pow(1 + F.r, 1 / 12); let v = F.hoy, a = hoy;
+for (let k = 1; ; k++) {
+const b = sumarMeses(hoy, k), fin = b >= fecha, hasta = fin ? fecha : b;
+const frac = fin ? Math.min(1, diasEntre(a, fecha) / Math.max(1, diasEntre(a, b))) : 1;
+const aps = F.ap.filter(x => x.d > a && x.d <= hasta).reduce((t, x) => t + x.a, 0);
+v = v * Math.pow(g, frac) + aps;
+if (fin) return v;
+a = b;
+}
+}
+const ordenarPor = (arr, st, get) => {   // ordena por la columna elegida en la cabecera; los vacíos siempre al final
+if (!st || !st.k) return arr;
+return [...arr].sort((p, q) => { const x = get(p, st.k), y = get(q, st.k); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+return (typeof x === 'string' || typeof y === 'string' ? String(x).localeCompare(String(y), 'es') : x - y) * st.d; });
+};
+const cabeza = (tabla, cols, st) => '<tr>' + cols.map(([k, n]) => `<th data-ord="${tabla}:${k}" class="ord" aria-sort="${st.k === k ? (st.d > 0 ? 'ascending' : 'descending') : 'none'}">${n}${st.k === k ? (st.d > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('') + '</tr>';
 function pintarEstado() {
 ing.fondos.forEach(f => { const e = isinEfectivo(f); if (e) cargarPrecios(e); });
-const fs = modeloFondos(0, null), porId = Object.fromEntries(fs.map(f => [f.id, f]));
+const hoy = hoyStr(), dSim = [['1 año', sumarMeses(hoy, 12)], ['3 años', sumarMeses(hoy, 36)], ['5 años', sumarMeses(hoy, 60)]];
+if (ing.simF && ing.simF > hoy) dSim.push([new Date(ing.simF + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' }), ing.simF]);
+dSim.sort((x, y) => x[1] < y[1] ? -1 : 1);
+const anios = Math.max(5, Math.ceil(diasEntre(hoy, dSim[dSim.length - 1][1]) / 365) + 1);
+const fs = modeloFondos(anios, null), porId = Object.fromEntries(fs.map(f => [f.id, f]));
 const corta = d => new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' });
 const filas = ing.pat.filter(p => p.tipo !== 'largo').map(p => {
 const f = p.tipo === 'fondo' ? porId[p.fondoId] : null;
-if (f) return { ...p, imp:f.hoy, sin:f.aportado, inv:f.aportado, no:null, rend:f.hoy - f.aportado, si:true, auto:f.fechaNav ? 'automático · VL ' + corta(f.fechaNav) : 'automático' };
+if (f) return { ...p, F:f, imp:f.hoy, sin:f.aportado, inv:f.aportado, no:null, rend:f.hoy - f.aportado, si:true, auto:f.fechaNav ? 'automático · VL ' + corta(f.fechaNav) : 'automático' };
 const v = p.importe || 0, si = p.tipo === 'fondo';
 return { ...p, imp:v, sin:null, inv:null, no:si ? null : v, rend:null, si, auto:'' };
 });
@@ -1015,22 +1041,40 @@ const T = a => filas.reduce((t, r) => t + (r[a] || 0), 0), totI = T('imp'), totR
 const m = v => v == null ? '' : eur.format(v), pc = v => (v * 100).toLocaleString('es-ES', { minimumFractionDigits:1, maximumFractionDigits:1 }) + ' %';
 const sg = v => `<span class="${v >= 0 ? 'pos' : 'neg'}">${v >= 0 ? '+' : ''}${eur.format(v)}</span>`;
 const btnPat = id => `<button class="btn2" data-pedit="${esc(id)}" type="button" style="padding:0 7px;font-size:11px;margin-left:4px">Editar</button>`;
-const f1 = filas.map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.auto ? `<span class="sub auto">${esc(r.auto)}</span>` : ''}</td><td>${esc(r.banco)}</td><td><b>${m(r.imp)}</b></td><td>${m(r.sin)}</td><td>${m(r.inv)}</td><td>${m(r.no)}</td><td>${r.rend == null ? '' : sg(r.rend)}</td><td>${totI > 0 ? pc(r.imp / totI) : ''}</td><td>${r.inv > 0 ? `<span class="${r.rend >= 0 ? 'pos' : 'neg'}">${pc(r.rend / r.inv)}</span>` : ''}</td><td>${r.si ? 'SÍ' : 'NO'}</td></tr>`).join('');
+// --- tabla principal ---
+const colsP = [['nombre', 'Nombre'], ['banco', 'Banco'], ['imp', 'Importe'], ['sin', 'Total sin rendimientos'], ['inv', 'Invertido'], ['no', 'No inversión'], ['rend', 'Rendimiento'], ['pond', 'Ponderación'], ['rent', 'Rentabilidad'], ['si', '¿Invertido?']];
+const getP = (r, k) => k === 'pond' ? r.imp : k === 'rent' ? (r.inv > 0 ? r.rend / r.inv : null) : k === 'si' ? (r.si ? 1 : 0) : r[k] === '' ? null : r[k];
+const f1 = ordenarPor(filas, ing.est.main, getP).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.auto ? `<span class="sub auto">${esc(r.auto)}</span>` : ''}</td><td>${esc(r.banco)}</td><td><b>${m(r.imp)}</b></td><td>${m(r.sin)}</td><td>${m(r.inv)}</td><td>${m(r.no)}</td><td>${r.rend == null ? '' : sg(r.rend)}</td><td>${totI > 0 ? pc(r.imp / totI) : ''}</td><td>${r.inv > 0 ? `<span class="${r.rend >= 0 ? 'pos' : 'neg'}">${pc(r.rend / r.inv)}</span>` : ''}</td><td>${r.si ? 'SÍ' : 'NO'}</td></tr>`).join('');
 const tot = `<tr class="tot"><td>TOTAL</td><td></td><td>${m(totI)}</td><td>${m(T('sin'))}</td><td>${m(totV)}</td><td>${m(T('no'))}</td><td>${sg(totR)}</td><td>${totI > 0 ? '100,0 %' : ''}</td><td>${totV > 0 ? `<span class="${totR >= 0 ? 'pos' : 'neg'}">${pc(totR / totV)}</span>` : ''}</td><td></td></tr>`;
-const lg = ing.pat.filter(p => p.tipo === 'largo'), tC = lg.reduce((t, r) => t + (r.coste || 0), 0), tP = lg.reduce((t, r) => t + pendienteHoy(r), 0);
-const t2 = lg.length ? `<div class="day" style="margin:12px 0 4px">Inversión a largo plazo</div><div class="estW"><table class="est"><thead><tr><th>Inversión a largo</th><th></th><th>Coste</th><th>Pendiente de amortización</th><th>¿Pagado?</th></tr></thead><tbody>`
-+ lg.map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.cuota > 0 ? `<span class="sub auto">cuota ${eur.format(r.cuota)}/mes · baja sola</span>` : ''}</td><td></td><td>${m(r.coste)}</td><td>${m(pendienteHoy(r))}</td><td>${r.pagado ? 'SÍ' : 'NO'}</td></tr>`).join('')
-+ `<tr class="tot"><td>TOTAL</td><td></td><td>${m(tC)}</td><td>${m(tP)}</td><td></td></tr></tbody></table></div>` : '';
+// --- largo plazo ---
+const lg = ing.pat.filter(p => p.tipo === 'largo').map(p => ({ ...p, c:costeLargo(p), pe:pendienteHoy(p) })), tC = lg.reduce((t, r) => t + r.c, 0), tP = lg.reduce((t, r) => t + r.pe, 0);
+const colsL = [['nombre', 'Inversión a largo'], ['c', 'Coste'], ['pe', 'Pendiente de amortización'], ['pg', '¿Pagado?']];
+const t2 = lg.length ? `<div class="day" style="margin:12px 0 4px">Inversión a largo plazo</div><div class="estW"><table class="est"><thead>${cabeza('lg', colsL, ing.est.lg)}</thead><tbody>`
++ ordenarPor(lg, ing.est.lg, (r, k) => k === 'pg' ? (r.pagado ? 1 : 0) : r[k]).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.origen === 'sagunto' ? '<span class="sub auto">coste automático · total gastado en Sagunto</span>' : ''}${r.cuota > 0 ? `<span class="sub auto">cuota ${eur.format(r.cuota)}/mes · baja sola</span>` : ''}</td><td>${m(r.c)}</td><td>${m(r.pe)}</td><td>${r.pagado ? 'SÍ' : 'NO'}</td></tr>`).join('')
++ `<tr class="tot"><td>TOTAL</td><td>${m(tC)}</td><td>${m(tP)}</td><td></td></tr></tbody></table></div>` : '';
+// --- simulación ---
+const simF = r => r.F ? dSim.map(([, d]) => valorFuturo(r.F, d)) : dSim.map(() => r.imp);   // cuentas: sin cambios
+const simFilas = filas.map(r => ({ nombre:r.nombre, v0:r.imp, v:simF(r) }));
+const simTot = dSim.map((_, i) => simFilas.reduce((t, r) => t + r.v[i], 0)), simPend = dSim.map(([, d]) => lg.reduce((t, r) => t + pendienteEn(r, d), 0));
+const colsS = [['nombre', 'Elemento'], ['v0', 'Hoy'], ...dSim.map(([n], i) => ['v' + i, n])];
+const getS = (r, k) => k === 'nombre' ? r.nombre : k === 'v0' ? r.v0 : r.v[+k.slice(1)];
+const t3 = filas.length ? `<div class="day" style="margin:14px 0 4px;display:flex;flex-wrap:wrap;align-items:center;gap:8px">Simulación <span style="text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;color:var(--ink3)">fecha a medida: <input type="date" id="simF" value="${esc(ing.simF || '')}" min="${esc(sumarDias(hoy, 1))}" style="font:inherit;font-size:12px;padding:2px 6px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink)"></span></div>`
++ `<div class="estW"><table class="est"><thead>${cabeza('sim', colsS, ing.est.sim)}</thead><tbody>`
++ ordenarPor(simFilas, ing.est.sim, getS).map(r => `<tr><td>${esc(r.nombre)}</td><td>${m(r.v0)}</td>${r.v.map(v => `<td><b>${m(v)}</b></td>`).join('')}</tr>`).join('')
++ `<tr class="tot"><td>TOTAL cuentas e inversiones</td><td>${m(totI)}</td>${simTot.map(v => `<td>${m(v)}</td>`).join('')}</tr>`
++ (lg.length ? `<tr><td>Pendiente de amortización</td><td>${m(tP)}</td>${simPend.map(v => `<td>${m(v)}</td>`).join('')}</tr><tr class="tot"><td>Total menos pendiente</td><td>${m(totI - tP)}</td>${simTot.map((v, i) => `<td>${m(v - simPend[i])}</td>`).join('')}</tr>` : '')
++ `</tbody></table></div><div class="c" style="font-size:11.5px;color:var(--ink3)">Inversiones: manteniendo su rentabilidad media y tus aportaciones periódicas. Cuentas: sin cambios (no se suman ahorros futuros). Pendiente: restando la cuota mensual si la hay.</div>` : '';
 const man = ing.pat.filter(p => !(p.tipo === 'fondo' && porId[p.fondoId])).map(p => p.actualizado).filter(Boolean).sort()[0];
-$('iEstNota').textContent = fs.length ? 'hoy ' + corta(hoyStr()) : '';
-$('iEstB').innerHTML = ing.pat.length ? `<div class="estW"><table class="est"><thead><tr><th>Nombre</th><th>Banco</th><th>Importe</th><th>Total sin rendimientos</th><th>Invertido</th><th>No inversión</th><th>Rendimiento</th><th>Ponderación</th><th>Rentabilidad</th><th>¿Invertido?</th></tr></thead><tbody>${f1}${tot}</tbody></table></div>${t2}
-<div class="c" style="font-size:11.5px;color:var(--ink3);margin-top:6px">Las inversiones («automático») se recalculan solas con los precios reales y tus aportaciones periódicas. Cuentas y bienes son datos guardados${man ? ' (última actualización: ' + fmtF(man) + ')' : ''}.</div>`
+$('iEstNota').textContent = fs.length ? 'hoy ' + corta(hoy) : '';
+$('iEstB').innerHTML = ing.pat.length ? `<div class="estW"><table class="est"><thead>${cabeza('main', colsP, ing.est.main)}</thead><tbody>${f1}${tot}</tbody></table></div>${t2}${t3}
+<div class="c" style="font-size:11.5px;color:var(--ink3);margin-top:8px">Pulsa una cabecera para ordenar. Las inversiones («automático») se recalculan solas con los precios reales y tus aportaciones periódicas. Cuentas y bienes son datos guardados${man ? ' (última actualización: ' + fmtF(man) + ')' : ''}.</div>`
 : '<div class="empty">Aún no hay datos del estado financiero.</div>';
 }
 function tipoPat() {   // muestra solo los campos que corresponden al tipo de fila
 const t = $('pTipo').value;
 $('pBancoL').classList.toggle('hidden', t === 'largo'); $('pImpL').classList.toggle('hidden', t !== 'cuenta'); $('pFondoL').classList.toggle('hidden', t !== 'fondo');
 ['pCosteL', 'pPendL', 'pCuotaL', 'pPagL'].forEach(i => $(i).classList.toggle('hidden', t !== 'largo'));
+$('pOrigenL').classList.toggle('hidden', t !== 'largo' || !DATA.sagunto); $('pCosteL').classList.toggle('hidden', t !== 'largo' || (!!DATA.sagunto && $('pOrigen').checked));
 }
 function abrirPat(id) {
 const p = id ? ing.pat.find(x => x.id === id) : null;
@@ -1044,7 +1088,7 @@ if (p && p.fondoId) $('pFondo').value = p.fondoId;
 $('pCoste').value = p && p.coste != null ? p.coste : '';
 $('pPend').value = p && p.tipo === 'largo' ? pendienteHoy(p) : '';
 $('pCuota').value = p && p.cuota != null ? p.cuota : '';
-$('pPag').checked = p ? !!p.pagado : true;
+$('pPag').checked = p ? !!p.pagado : true; $('pOrigen').checked = !!(p && p.origen === 'sagunto');
 $('pDel').classList.toggle('hidden', !p); $('pErr').textContent = '';
 tipoPat();
 $('pDlg').showModal();
@@ -1054,10 +1098,10 @@ e.preventDefault();
 const t = $('pTipo').value, nombre = $('pNombre').value.trim(), nv = id => $(id).value === '' ? null : Math.round(parseFloat($(id).value) * 100) / 100, err = m => { $('pErr').textContent = m; };
 if (!nombre) return err('Indica un nombre.');
 const a = { p_codigo:ing.code, p_id:ing.patId || crypto.randomUUID(), p_tipo:t, p_nombre:nombre, p_banco:t === 'largo' ? '' : $('pBanco').value.trim(), p_orden:ing.patOrden,
-p_importe:null, p_fondo_id:null, p_coste:null, p_pagado:null, p_pendiente:null, p_cuota:null };
+p_importe:null, p_fondo_id:null, p_coste:null, p_pagado:null, p_pendiente:null, p_cuota:null, p_origen:null };
 if (t === 'cuenta') { a.p_importe = nv('pImp'); if (a.p_importe === null || isNaN(a.p_importe)) return err('Indica el importe actual.'); }
 else if (t === 'fondo') { a.p_fondo_id = $('pFondo').value || null; if (!a.p_fondo_id) return err('Primero crea el fondo o plan en la pestaña Inversión.'); }
-else { a.p_coste = nv('pCoste'); a.p_pendiente = nv('pPend') ?? 0; a.p_cuota = nv('pCuota'); a.p_pagado = $('pPag').checked; if (a.p_coste === null) return err('Indica el coste.'); if (a.p_cuota !== null && !(a.p_cuota > 0)) return err('La cuota debe ser mayor que 0.'); }
+else { a.p_origen = $('pOrigen').checked && DATA.sagunto ? 'sagunto' : null; a.p_coste = a.p_origen ? costeLargo({ origen:'sagunto' }) : nv('pCoste'); a.p_pendiente = nv('pPend') ?? 0; a.p_cuota = nv('pCuota'); a.p_pagado = $('pPag').checked; if (a.p_coste === null) return err('Indica el coste.'); if (a.p_cuota !== null && !(a.p_cuota > 0)) return err('La cuota debe ser mayor que 0.'); }
 $('pSave').disabled = true;
 const ok = await ingOp(() => rpc('patrimonio_guardar', a));
 $('pSave').disabled = false;
@@ -1597,7 +1641,13 @@ let thv; $('vHist').addEventListener('input', () => { clearTimeout(thv); thv = s
 $('vHistF').addEventListener('change', () => { const f = $('vHistF').files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { $('vHist').value = String(r.result || ''); leerHistorico(); }; r.readAsText(f); });
 $('vHistQuitar').onclick = () => { ing.histQuitar = true; ing.histTmp = null; $('vHist').value = ''; $('vHistInfo').textContent = 'Se quitará el histórico guardado al pulsar Guardar.'; };
 $('vDel').onclick = borrarFondo;
-$('iEstB').addEventListener('click', e => { const b = e.target.closest('[data-pedit]'); if (b) abrirPat(b.dataset.pedit); });
+$('iEstB').addEventListener('click', e => {
+const b = e.target.closest('[data-pedit]'); if (b) { abrirPat(b.dataset.pedit); return; }
+const h = e.target.closest('[data-ord]');
+if (h) { const [t, k] = h.dataset.ord.split(':'), st = ing.est[t]; if (st.k === k) st.d = -st.d; else { st.k = k; st.d = ['nombre', 'banco'].includes(k) ? 1 : -1; } pintarEstado(); }
+});
+$('iEstB').addEventListener('change', e => { if (e.target.id === 'simF' && e.target.value) { ing.simF = e.target.value; LSset('simF', ing.simF); pintarEstado(); } });
+$('pOrigen').addEventListener('change', tipoPat);
 $('pForm').addEventListener('submit', guardarPat);
 $('pCancel').onclick = () => $('pDlg').close();
 $('pDel').onclick = borrarPat;
