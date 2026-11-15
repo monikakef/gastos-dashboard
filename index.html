@@ -113,7 +113,7 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .btn2 { padding:8px 14px; font-size:14px; border-radius:12px; border:1px solid var(--line); background:none; color:var(--ink); }
 .btn2.danger { color:var(--bad); }
 #ing .top { flex-wrap:wrap; }
-#iSub { flex:1 1 100%; } #iSub button { flex:1; padding:6px 4px; font-size:12.5px; white-space:nowrap; }
+#iSub, #rSub { flex:1 1 100%; } #rSub button { flex:1; padding:6px 4px; font-size:12.5px; white-space:nowrap; } #iSub button { flex:1; padding:6px 4px; font-size:12.5px; white-space:nowrap; }
 #ing .tiles { grid-template-columns:repeat(auto-fit, minmax(74px, 1fr)); }
 .prev { display:grid; grid-template-columns:minmax(70px, 1.5fr) repeat(3, minmax(0, 1fr)); gap:6px 8px; font-size:12.5px; align-items:start; }
 .prev .h { color:var(--ink3); font-size:11px; } .prev .c { color:var(--ink3); font-size:11.5px; } .prev .r { text-align:right; }
@@ -122,6 +122,15 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 #ing .tile .label { font-size:11.5px; }
 #ing .row { cursor:pointer; }
 .fRow { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
+.estW { overflow-x:auto; -webkit-overflow-scrolling:touch; margin-bottom:6px; }
+.est { width:100%; border-collapse:collapse; font-size:12.5px; }
+.est th { text-align:right; color:var(--ink3); font-size:11px; font-weight:500; padding:4px 8px; white-space:nowrap; border-bottom:1px solid var(--line); }
+.est td { text-align:right; padding:6px 8px; white-space:nowrap; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; }
+.est th:first-child, .est td:first-child, .est th:nth-child(2), .est td:nth-child(2) { text-align:left; }
+.est td:first-child { white-space:normal; min-width:130px; }
+.est tr.tot td { font-weight:700; border-top:1px solid var(--line); border-bottom:0; }
+.est .sub { display:block; font-size:11px; color:var(--ink3); font-weight:400; }
+.est .auto { color:var(--s1); }
 .vbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 6px; }
 .vbar .seg button { padding:3px 10px; font-size:12px; }
 .dsel { display:flex; gap:6px; align-items:center; } .dsel .btn2 { padding:3px 12px; font-size:15px; } .dsel .sort { font-size:13px; }
@@ -259,6 +268,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <div class="top">
 <div class="seg" id="iWho" role="group" aria-label="Persona"></div>
 <div class="month hidden" id="iYear"><button id="iPrevY" type="button" aria-label="Año anterior">‹</button><strong id="iYearL" style="min-width:56px"></strong><button id="iNextY" type="button" aria-label="Año siguiente">›</button></div>
+<div class="seg hidden" id="rSub" role="group" aria-label="Vista del resumen"><button data-r="graf" aria-pressed="true">Ingresos y gastos</button><button data-r="estado" aria-pressed="false">Estado financiero</button></div>
 <div class="seg hidden" id="iSub" role="group" aria-label="Vista de inversión"><button data-s="aport" aria-pressed="true">Aportaciones</button><button data-s="fondos" aria-pressed="false">Fondos</button><button data-s="planes" aria-pressed="false">Plan de pensiones</button><button data-s="resumen" aria-pressed="false">Resumen</button></div>
 <div class="seg" id="iGran" role="group" aria-label="Agrupar por">
 <button data-g="m" aria-pressed="true">Meses</button>
@@ -293,6 +303,10 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <div id="iProyBox" style="flex:1;min-height:0;position:relative"></div>
 </section>
 </div>
+<section class="card hidden" id="iEst" style="flex:1;min-height:0;overflow:auto">
+<h2><span>Estado financiero</span><span class="label" id="iEstNota"></span></h2>
+<div id="iEstB"></div>
+</section>
 <div class="sagRow">
 <section class="card sagChart">
 <h2 id="iTitle"></h2>
@@ -628,7 +642,7 @@ setView();
 }
 /* ---------- Resumen e Inversión: filas en Supabase, protegidas con un código de acceso propio ---------- */
 const SB = { url:'https://gzewqeoqsgoljzuglwpc.supabase.co', key:'sb_publishable_d2gsiwOPJwDyoKoIjgKIvA_WbVyoBJf' };
-const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null, vista:LS('iVista') === 'dia' ? 'dia' : 'mes', diaMes:null };
+const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null, pat:[], rsub:LS('rSub') === 'estado' ? 'estado' : 'graf', vista:LS('iVista') === 'dia' ? 'dia' : 'mes', diaMes:null };
 const TOPE_RESUMEN = 5000;   // máximo visible en la gráfica mes a mes del Resumen (€)
 const modoIng = () => sag.view === 'inv' ? 'inversion' : 'ingreso';  // la pestaña Resumen gestiona ingresos; Inversión, inversiones
 const CATS_ING = { ingreso:['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'],
@@ -642,7 +656,8 @@ if (!r.ok) throw new Error((j && j.message) || 'Error ' + r.status);
 return j;
 }
 async function ingListar() {
-const [rows, fon] = await Promise.all([rpc('ingresos_listar', { p_codigo:ing.code }), rpc('fondos_listar', { p_codigo:ing.code })]);
+const [rows, fon, pat] = await Promise.all([rpc('ingresos_listar', { p_codigo:ing.code }), rpc('fondos_listar', { p_codigo:ing.code }), rpc('patrimonio_listar', { p_codigo:ing.code }).catch(() => [])]);
+ing.pat = (pat || []).map(r => ({ id:r.id, tipo:r.tipo, nombre:r.nombre, banco:r.banco || '', orden:r.orden, importe:r.importe == null ? null : Number(r.importe), fondoId:r.fondo_id, coste:r.coste == null ? null : Number(r.coste), pagado:r.pagado, pendiente:r.pendiente == null ? null : Number(r.pendiente), actualizado:r.actualizado }));
 ing.fondos = fon.map(f => ({ id:f.id, clase:f.clase || 'fondo', ref:f.ref_isin || '', historico:Array.isArray(f.historico) ? f.historico : null, nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
 inicial:f.inicial == null ? null : Number(f.inicial), inicialFecha:f.inicial_fecha, baseFecha:f.base_fecha, baseAportado:f.base_aportado == null ? null : Number(f.base_aportado), baseValor:f.base_valor == null ? null : Number(f.base_valor), rent:f.rent_anual == null ? null : Number(f.rent_anual), persona:f.persona }));
 ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso', per:r.periodicidad || 'unica', fin:r.fecha_fin || null, rent:r.rent_anual == null ? null : Number(r.rent_anual), fondoId:r.fondo_id || null }));
@@ -957,6 +972,32 @@ tip.style.left = Math.min(Math.max(x(i) / W * r.width - 50, 0), r.width - 130) +
 svg.addEventListener('pointermove', mover); svg.addEventListener('pointerdown', mover);
 svg.addEventListener('pointerleave', () => { $('pCross').classList.add('hidden'); tip.classList.add('hidden'); });
 }
+// Estado financiero: cuentas y bienes son datos guardados; las inversiones se calculan solas (precios reales + aportaciones periódicas).
+function pintarEstado() {
+ing.fondos.forEach(f => { const e = isinEfectivo(f); if (e) cargarPrecios(e); });
+const fs = modeloFondos(0, null), porId = Object.fromEntries(fs.map(f => [f.id, f]));
+const corta = d => new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' });
+const filas = ing.pat.filter(p => p.tipo !== 'largo').map(p => {
+const f = p.tipo === 'fondo' ? porId[p.fondoId] : null;
+if (f) return { ...p, imp:f.hoy, sin:f.aportado, inv:f.aportado, no:null, rend:f.hoy - f.aportado, si:true, auto:f.fechaNav ? 'automático · VL ' + corta(f.fechaNav) : 'automático' };
+const v = p.importe || 0, si = p.tipo === 'fondo';
+return { ...p, imp:v, sin:null, inv:null, no:si ? null : v, rend:null, si, auto:'' };
+});
+const T = a => filas.reduce((t, r) => t + (r[a] || 0), 0), totI = T('imp'), totR = T('rend'), totV = T('inv');
+const m = v => v == null ? '' : eur.format(v), pc = v => (v * 100).toLocaleString('es-ES', { minimumFractionDigits:1, maximumFractionDigits:1 }) + ' %';
+const sg = v => `<span class="${v >= 0 ? 'pos' : 'neg'}">${v >= 0 ? '+' : ''}${eur.format(v)}</span>`;
+const f1 = filas.map(r => `<tr><td>${esc(r.nombre)}${r.auto ? `<span class="sub auto">${esc(r.auto)}</span>` : ''}</td><td>${esc(r.banco)}</td><td><b>${m(r.imp)}</b></td><td>${m(r.sin)}</td><td>${m(r.inv)}</td><td>${m(r.no)}</td><td>${r.rend == null ? '' : sg(r.rend)}</td><td>${totI > 0 ? pc(r.imp / totI) : ''}</td><td>${r.inv > 0 ? `<span class="${r.rend >= 0 ? 'pos' : 'neg'}">${pc(r.rend / r.inv)}</span>` : ''}</td><td>${r.si ? 'SÍ' : 'NO'}</td></tr>`).join('');
+const tot = `<tr class="tot"><td>TOTAL</td><td></td><td>${m(totI)}</td><td>${m(T('sin'))}</td><td>${m(totV)}</td><td>${m(T('no'))}</td><td>${sg(totR)}</td><td>${totI > 0 ? '100,0 %' : ''}</td><td>${totV > 0 ? `<span class="${totR >= 0 ? 'pos' : 'neg'}">${pc(totR / totV)}</span>` : ''}</td><td></td></tr>`;
+const lg = ing.pat.filter(p => p.tipo === 'largo'), tC = lg.reduce((t, r) => t + (r.coste || 0), 0), tP = lg.reduce((t, r) => t + (r.pendiente || 0), 0);
+const t2 = lg.length ? `<div class="day" style="margin:12px 0 4px">Inversión a largo plazo</div><div class="estW"><table class="est"><thead><tr><th>Inversión a largo</th><th></th><th>Coste</th><th>Pendiente de amortización</th><th>¿Pagado?</th></tr></thead><tbody>`
++ lg.map(r => `<tr><td>${esc(r.nombre)}</td><td></td><td>${m(r.coste)}</td><td>${m(r.pendiente || 0)}</td><td>${r.pagado ? 'SÍ' : 'NO'}</td></tr>`).join('')
++ `<tr class="tot"><td>TOTAL</td><td></td><td>${m(tC)}</td><td>${m(tP)}</td><td></td></tr></tbody></table></div>` : '';
+const man = ing.pat.filter(p => !(p.tipo === 'fondo' && porId[p.fondoId])).map(p => p.actualizado).filter(Boolean).sort()[0];
+$('iEstNota').textContent = fs.length ? 'hoy ' + corta(hoyStr()) : '';
+$('iEstB').innerHTML = ing.pat.length ? `<div class="estW"><table class="est"><thead><tr><th>Nombre</th><th>Banco</th><th>Importe</th><th>Total sin rendimientos</th><th>Invertido</th><th>No inversión</th><th>Rendimiento</th><th>Ponderación</th><th>Rentabilidad</th><th>¿Invertido?</th></tr></thead><tbody>${f1}${tot}</tbody></table></div>${t2}
+<div class="c" style="font-size:11.5px;color:var(--ink3);margin-top:6px">Las inversiones («automático») se recalculan solas con los precios reales y tus aportaciones periódicas. Cuentas y bienes son datos guardados${man ? ' (última actualización: ' + fmtF(man) + ')' : ''}.</div>`
+: '<div class="empty">Aún no hay datos del estado financiero.</div>';
+}
 function avisoExtra() {
 const f = ing.fondos.find(x => x.id === ing.extraFondo), d = $('xFecha').value;
 $('xAviso').textContent = f && f.baseValor != null && f.baseFecha && d && d <= f.baseFecha
@@ -1089,16 +1130,19 @@ $('iMsg').textContent = ing.msg; $('iMsg').classList.toggle('hidden', !ing.msg);
 const m = modoIng(), res = m === 'ingreso', X = TXT_ING[m];
 const yr = ing.gran === 'y', hm = hoyStr().slice(0, 7), cy = hm.slice(0, 4);
 $('iYear').classList.add('hidden');
+const verRes = res && ing.estado === 'ok' && vistaFan(), estado = verRes && ing.rsub === 'estado';   // el estado financiero es de Fan
+$('rSub').classList.toggle('hidden', !verRes); $('iEst').classList.toggle('hidden', !estado); $('iGran').classList.toggle('hidden', estado);
+document.querySelectorAll('#rSub button').forEach(b => b.setAttribute('aria-pressed', b.dataset.r === (estado ? 'estado' : 'graf')));
 $('iAdd').disabled = ing.estado !== 'ok'; $('iAdd').textContent = !res && ing.sub === 'planes' ? '+ Nuevo plan' : X.add;
-$('iAdd').classList.toggle('hidden', !res && ing.sub === 'resumen');   // el resumen de inversiones solo se consulta
+$('iAdd').classList.toggle('hidden', (!res && ing.sub === 'resumen') || estado);   // el resumen de inversiones solo se consulta
 $('iChange').classList.toggle('hidden', ing.estado !== 'ok');
 $('iListT').textContent = X.lista;
 const modoFondos = !res && ['fondos', 'planes', 'resumen'].includes(ing.sub) && ing.estado === 'ok';
 $('iSub').classList.toggle('hidden', res || ing.estado !== 'ok');
 document.querySelectorAll('#iSub button').forEach(b => b.setAttribute('aria-pressed', b.dataset.s === ing.sub));
 ['iFRow', 'iFondos', 'iProy'].forEach(i => $(i).classList.toggle('hidden', !modoFondos));
-document.querySelector('#ing > .hero').classList.toggle('hidden', modoFondos);
-document.querySelector('#ing > .sagRow').classList.toggle('hidden', modoFondos);
+document.querySelector('#ing > .hero').classList.toggle('hidden', modoFondos || estado);
+document.querySelector('#ing > .sagRow').classList.toggle('hidden', modoFondos || estado);
 if (ing.estado === 'idle') { ingCargar(); return; }
 if (ing.estado !== 'ok') {
 $('iRows').innerHTML = ing.estado === 'cargando' ? '<div class="empty">Cargando…</div>'
@@ -1113,6 +1157,7 @@ return;
 }
 $('iWho').classList.toggle('hidden', !res);   // las inversiones son siempre de Fan: sin selector de persona
 const todos = [...ing.items.flatMap(t => ocurrencias(t, hoyStr())), ...aportesFondos(hoyStr())];
+if (estado) { pintarEstado(); return; }
 if (modoFondos) { pintarFondos(); pintarProy(); return; }
 const quien = t => state.who === 'Total' || t.p === state.who;
 const its = res ? todos.filter(t => t.tipo === 'ingreso' && quien(t)) : todos.filter(t => t.tipo === 'inversion');
@@ -1472,6 +1517,7 @@ $('iDM').addEventListener('change', () => irMes($('iDA').value + '-' + $('iDM').
 $('iDA').addEventListener('change', () => irMes($('iDA').value + '-' + ($('iDM').value || '01')));
 $('iDPrev').addEventListener('click', () => irMes(sumarMeses(ing.diaMes + '-01', -1).slice(0, 7)));
 $('iDNext').addEventListener('click', () => irMes(sumarMeses(ing.diaMes + '-01', 1).slice(0, 7)));
+$('rSub').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.rsub = b.dataset.r; LSset('rSub', ing.rsub); pintarIng(); } });
 $('iHor').addEventListener('change', () => { ing.horizonte = $('iHor').value; LSset('iHor', ing.horizonte); pintarIng(); });
 let rzp; new ResizeObserver(() => { clearTimeout(rzp); rzp = setTimeout(() => { if (sag.view === 'inv' && ing.estado === 'ok' && ['fondos', 'planes', 'resumen'].includes(ing.sub)) pintarProy(); }, 80); }).observe($('iProyBox'));
 $('vForm').addEventListener('submit', guardarFondo);
