@@ -126,9 +126,10 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .est { width:100%; border-collapse:collapse; font-size:12.5px; }
 .est th { text-align:right; color:var(--ink3); font-size:11px; font-weight:500; padding:4px 8px; white-space:nowrap; border-bottom:1px solid var(--line); }
 .est td { text-align:right; padding:6px 8px; white-space:nowrap; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; }
-.est th:first-child, .est td:first-child, .est th:nth-child(2), .est td:nth-child(2) { text-align:left; }
+.est th:first-child, .est td:first-child, .est.p2 th:nth-child(2), .est.p2 td:nth-child(2) { text-align:left; }
 .est td:first-child { white-space:normal; min-width:130px; }
 .est tr.tot td { font-weight:700; border-top:1px solid var(--line); border-bottom:0; }
+#eSub button { padding:7px 14px; font-size:13px; }
 .est th.ord { cursor:pointer; user-select:none; } .est th.ord:hover { color:var(--ink); }
 .est .sub { display:block; font-size:11px; color:var(--ink3); font-weight:400; }
 .est .auto { color:var(--s1); }
@@ -270,6 +271,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <div class="seg" id="iWho" role="group" aria-label="Persona"></div>
 <div class="month hidden" id="iYear"><button id="iPrevY" type="button" aria-label="Año anterior">‹</button><strong id="iYearL" style="min-width:56px"></strong><button id="iNextY" type="button" aria-label="Año siguiente">›</button></div>
 <div class="seg hidden" id="rSub" role="group" aria-label="Vista del resumen"><button data-r="graf" aria-pressed="true">Ingresos y gastos</button><button data-r="estado" aria-pressed="false">Estado financiero</button><button data-r="sim" aria-pressed="false">Simulación</button></div>
+<div class="seg hidden" id="eSub" role="group" aria-label="Estado financiero"><button data-e="resumen" aria-pressed="true">Resumen</button><button data-e="largo" aria-pressed="false">Inversión a largo plazo</button></div>
 <div class="seg hidden" id="iSub" role="group" aria-label="Vista de inversión"><button data-s="aport" aria-pressed="true">Aportaciones</button><button data-s="fondos" aria-pressed="false">Fondos</button><button data-s="planes" aria-pressed="false">Plan de pensiones</button><button data-s="resumen" aria-pressed="false">Resumen</button></div>
 <div class="seg" id="iGran" role="group" aria-label="Agrupar por">
 <button data-g="m" aria-pressed="true">Meses</button>
@@ -326,6 +328,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <label id="pImpL">Importe actual (€)<input id="pImp" type="number" step="0.01" inputmode="decimal" placeholder="1000"></label>
 <label id="pFondoL">Fondo o plan (su importe se calcula solo)<select id="pFondo"></select></label>
 <label id="pCosteL">Coste (€)<input id="pCoste" type="number" step="0.01" min="0" inputmode="decimal" placeholder="16000"></label>
+<label id="pPPagL">Pendiente de pago (€): parte del coste que aún no has pagado<input id="pPPago" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0"></label>
 <label id="pPendL">Pendiente de amortización hoy (€)<input id="pPend" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0"></label>
 <label id="pCuotaL">Cuota mensual (opcional: el pendiente baja solo cada mes)<input id="pCuota" type="number" step="0.01" min="0" inputmode="decimal" placeholder="250"></label>
 <label id="pOrigenL"><input type="checkbox" id="pOrigen" style="display:inline-block;width:auto;margin:0 6px 0 0;vertical-align:middle">Coste = total gastado en Sagunto (automático)</label>
@@ -665,7 +668,7 @@ setView();
 }
 /* ---------- Resumen e Inversión: filas en Supabase, protegidas con un código de acceso propio ---------- */
 const SB = { url:'https://gzewqeoqsgoljzuglwpc.supabase.co', key:'sb_publishable_d2gsiwOPJwDyoKoIjgKIvA_WbVyoBJf' };
-const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null, pat:[], est:{ main:{ k:null, d:1 }, lg:{ k:null, d:1 }, sim:{ k:null, d:1 } }, simF:LS('simF') || '2028-05-06', rsub:['estado', 'sim'].includes(LS('rSub')) ? LS('rSub') : 'graf', vista:LS('iVista') === 'dia' ? 'dia' : 'mes', diaMes:null };
+const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null, pat:[], esub:LS('eSub') === 'largo' ? 'largo' : 'resumen', est:{ main:{ k:null, d:1 }, lg:{ k:null, d:1 }, sim:{ k:null, d:1 } }, simF:LS('simF') || '2028-05-06', rsub:['estado', 'sim'].includes(LS('rSub')) ? LS('rSub') : 'graf', vista:LS('iVista') === 'dia' ? 'dia' : 'mes', diaMes:null };
 const TOPE_RESUMEN = 5000;   // máximo visible en la gráfica mes a mes del Resumen (€)
 const modoIng = () => sag.view === 'inv' ? 'inversion' : 'ingreso';  // la pestaña Resumen gestiona ingresos; Inversión, inversiones
 const CATS_ING = { ingreso:['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'],
@@ -680,7 +683,7 @@ return j;
 }
 async function ingListar() {
 const [rows, fon, pat] = await Promise.all([rpc('ingresos_listar', { p_codigo:ing.code }), rpc('fondos_listar', { p_codigo:ing.code }), rpc('patrimonio_listar', { p_codigo:ing.code }).catch(() => [])]);
-ing.pat = (pat || []).map(r => ({ id:r.id, tipo:r.tipo, nombre:r.nombre, banco:r.banco || '', orden:r.orden, importe:r.importe == null ? null : Number(r.importe), fondoId:r.fondo_id, coste:r.coste == null ? null : Number(r.coste), pagado:r.pagado, pendiente:r.pendiente == null ? null : Number(r.pendiente), actualizado:r.actualizado, cuota:r.cuota == null ? null : Number(r.cuota), origen:r.origen || null }));
+ing.pat = (pat || []).map(r => ({ id:r.id, tipo:r.tipo, nombre:r.nombre, banco:r.banco || '', orden:r.orden, importe:r.importe == null ? null : Number(r.importe), fondoId:r.fondo_id, coste:r.coste == null ? null : Number(r.coste), pagado:r.pagado, pendiente:r.pendiente == null ? null : Number(r.pendiente), actualizado:r.actualizado, cuota:r.cuota == null ? null : Number(r.cuota), origen:r.origen || null, pendientePago:r.pendiente_pago == null ? null : Number(r.pendiente_pago) }));
 ing.fondos = fon.map(f => ({ id:f.id, clase:f.clase || 'fondo', ref:f.ref_isin || '', historico:Array.isArray(f.historico) ? f.historico : null, nombre:f.nombre, isin:f.isin || '', aporte:f.aporte == null ? null : Number(f.aporte), per:f.periodicidad, desde:f.aporte_desde, hasta:f.aporte_hasta,
 inicial:f.inicial == null ? null : Number(f.inicial), inicialFecha:f.inicial_fecha, baseFecha:f.base_fecha, baseAportado:f.base_aportado == null ? null : Number(f.base_aportado), baseValor:f.base_valor == null ? null : Number(f.base_valor), rent:f.rent_anual == null ? null : Number(f.rent_anual), persona:f.persona }));
 ing.items = rows.map(r => ({ id:r.id, d:r.fecha, desc:r.concepto, amount:Number(r.importe), cat:r.categoria, p:r.persona, tipo:r.tipo || 'ingreso', per:r.periodicidad || 'unica', fin:r.fecha_fin || null, rent:r.rent_anual == null ? null : Number(r.rent_anual), fondoId:r.fondo_id || null }));
@@ -1026,7 +1029,9 @@ const cabeza = (tabla, cols, st) => '<tr>' + cols.map(([k, n]) => `<th data-ord=
 function pintarEstado() {
 ing.fondos.forEach(f => { const e = isinEfectivo(f); if (e) cargarPrecios(e); });
 const hoy = hoyStr(), dSim = [['1 año', sumarMeses(hoy, 12)], ['3 años', sumarMeses(hoy, 36)], ['5 años', sumarMeses(hoy, 60)], ['10 años', sumarMeses(hoy, 120)], ['30 años', sumarMeses(hoy, 360)]], sim = ing.rsub === 'sim';
-$('iEstT').textContent = sim ? 'Simulación' : 'Estado financiero';
+const largo = ing.rsub === 'estado' && ing.esub === 'largo';
+$('iEstT').textContent = sim ? 'Simulación' : largo ? 'Inversión a largo plazo' : 'Estado financiero';
+document.querySelectorAll('#eSub button').forEach(b => b.setAttribute('aria-pressed', b.dataset.e === ing.esub));
 if (ing.simF && ing.simF > hoy) dSim.push([new Date(ing.simF + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' }), ing.simF]);
 dSim.sort((x, y) => x[1] < y[1] ? -1 : 1);
 const anios = Math.max(5, Math.ceil(diasEntre(hoy, dSim[dSim.length - 1][1]) / 365) + 1);
@@ -1048,11 +1053,12 @@ const getP = (r, k) => k === 'pond' ? r.imp : k === 'rent' ? (r.inv > 0 ? r.rend
 const f1 = ordenarPor(filas, ing.est.main, getP).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.auto ? `<span class="sub auto">${esc(r.auto)}</span>` : ''}</td><td>${esc(r.banco)}</td><td><b>${m(r.imp)}</b></td><td>${m(r.sin)}</td><td>${m(r.inv)}</td><td>${m(r.no)}</td><td>${r.rend == null ? '' : sg(r.rend)}</td><td>${totI > 0 ? pc(r.imp / totI) : ''}</td><td>${r.inv > 0 ? `<span class="${r.rend >= 0 ? 'pos' : 'neg'}">${pc(r.rend / r.inv)}</span>` : ''}</td><td>${r.si ? 'SÍ' : 'NO'}</td></tr>`).join('');
 const tot = `<tr class="tot"><td>TOTAL</td><td></td><td>${m(totI)}</td><td>${m(T('sin'))}</td><td>${m(totV)}</td><td>${m(T('no'))}</td><td>${sg(totR)}</td><td>${totI > 0 ? '100,0 %' : ''}</td><td>${totV > 0 ? `<span class="${totR >= 0 ? 'pos' : 'neg'}">${pc(totR / totV)}</span>` : ''}</td><td></td></tr>`;
 // --- largo plazo ---
-const lg = ing.pat.filter(p => p.tipo === 'largo').map(p => ({ ...p, c:costeLargo(p), pe:pendienteHoy(p) })), tC = lg.reduce((t, r) => t + r.c, 0), tP = lg.reduce((t, r) => t + r.pe, 0);
-const colsL = [['nombre', 'Inversión a largo'], ['pg', 'Pagado'], ['pe', 'Pendiente Pago'], ['c', 'Coste']];
-const t2 = lg.length ? `<div class="day" style="margin:12px 0 4px">Inversión a largo plazo</div><div class="estW"><table class="est"><thead>${cabeza('lg', colsL, ing.est.lg)}</thead><tbody>`
-+ ordenarPor(lg, ing.est.lg, (r, k) => k === 'pg' ? (r.pagado ? 1 : 0) : r[k]).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.origen === 'sagunto' ? '<span class="sub auto">coste automático · total gastado en Sagunto</span>' : ''}${r.cuota > 0 ? `<span class="sub auto">cuota ${eur.format(r.cuota)}/mes · baja sola</span>` : ''}</td><td>${r.pagado ? 'SÍ' : 'NO'}</td><td>${m(r.pe)}</td><td>${m(r.c)}</td></tr>`).join('')
-+ `<tr class="tot"><td>TOTAL</td><td></td><td>${m(tP)}</td><td>${m(tC)}</td></tr></tbody></table></div>` : '';
+const lg = ing.pat.filter(p => p.tipo === 'largo').map(p => { const c = costeLargo(p), pp = Math.min(p.pendientePago || 0, c); return { ...p, c, pp, pa:Math.round((c - pp) * 100) / 100, pe:pendienteHoy(p) }; });
+const sumLg = k => lg.reduce((t, r) => t + r[k], 0), tC = sumLg('c'), tP = sumLg('pe'), tPa = sumLg('pa'), tPP = sumLg('pp');
+const colsL = [['nombre', 'Inversión a largo'], ['c', 'Coste'], ['pa', 'Pagado'], ['pp', 'Pendiente Pago'], ['pe', 'Pendiente de amortización'], ['pg', '¿Pagado?']];
+const t2 = lg.length ? `<div class="estW"><table class="est"><thead>${cabeza('lg', colsL, ing.est.lg)}</thead><tbody>`
++ ordenarPor(lg, ing.est.lg, (r, k) => k === 'pg' ? (r.pagado ? 1 : 0) : r[k]).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.origen === 'sagunto' ? '<span class="sub auto">coste automático · total gastado en Sagunto</span>' : ''}${r.cuota > 0 ? `<span class="sub auto">cuota ${eur.format(r.cuota)}/mes · baja sola</span>` : ''}</td><td>${m(r.c)}</td><td>${m(r.pa)}</td><td>${m(r.pp)}</td><td>${m(r.pe)}</td><td>${r.pagado ? 'SÍ' : 'NO'}</td></tr>`).join('')
++ `<tr class="tot"><td>TOTAL</td><td>${m(tC)}</td><td>${m(tPa)}</td><td>${m(tPP)}</td><td>${m(tP)}</td><td></td></tr></tbody></table></div>` : '<div class="empty">Aún no hay inversiones a largo plazo. Pulsa «+ Añadir fila».</div>';
 // --- simulación ---
 const simF = r => r.F ? dSim.map(([, d]) => valorFuturo(r.F, d)) : dSim.map(() => r.imp);   // cuentas: sin cambios
 const simFilas = filas.map(r => ({ nombre:r.nombre, v0:r.imp, v:simF(r) }));
@@ -1063,32 +1069,32 @@ const t3 = filas.length ? `<div class="day" style="margin:14px 0 4px;display:fle
 + `<div class="estW"><table class="est"><thead>${cabeza('sim', colsS, ing.est.sim)}</thead><tbody>`
 + ordenarPor(simFilas, ing.est.sim, getS).map(r => `<tr><td>${esc(r.nombre)}</td><td>${m(r.v0)}</td>${r.v.map(v => `<td><b>${m(v)}</b></td>`).join('')}</tr>`).join('')
 + `<tr class="tot"><td>TOTAL cuentas e inversiones</td><td>${m(totI)}</td>${simTot.map(v => `<td>${m(v)}</td>`).join('')}</tr>`
-+ (lg.length ? `<tr><td>Pendiente Pago</td><td>${m(tP)}</td>${simPend.map(v => `<td>${m(v)}</td>`).join('')}</tr><tr class="tot"><td>Total menos pendiente</td><td>${m(totI - tP)}</td>${simTot.map((v, i) => `<td>${m(v - simPend[i])}</td>`).join('')}</tr>` : '')
++ (lg.length ? `<tr><td>Pendiente de amortización</td><td>${m(tP)}</td>${simPend.map(v => `<td>${m(v)}</td>`).join('')}</tr><tr class="tot"><td>Total menos pendiente</td><td>${m(totI - tP)}</td>${simTot.map((v, i) => `<td>${m(v - simPend[i])}</td>`).join('')}</tr>` : '')
 + `</tbody></table></div><div class="c" style="font-size:11.5px;color:var(--ink3)">Inversiones: manteniendo su rentabilidad media y tus aportaciones periódicas. Cuentas: sin cambios (no se suman ahorros futuros). Pendiente: restando la cuota mensual si la hay.</div>` : '';
 const man = ing.pat.filter(p => !(p.tipo === 'fondo' && porId[p.fondoId])).map(p => p.actualizado).filter(Boolean).sort()[0];
 $('iEstNota').textContent = fs.length ? 'hoy ' + corta(hoy) : '';
-$('iEstB').innerHTML = ing.pat.length ? (sim ? t3 : `<div class="estW"><table class="est"><thead>${cabeza('main', colsP, ing.est.main)}</thead><tbody>${f1}${tot}</tbody></table></div>${t2}`) + `
+$('iEstB').innerHTML = ing.pat.length ? (sim ? t3 : largo ? t2 : `<div class="estW"><table class="est p2"><thead>${cabeza('main', colsP, ing.est.main)}</thead><tbody>${f1}${tot}</tbody></table></div>`) + `
 <div class="c" style="font-size:11.5px;color:var(--ink3);margin-top:8px">Pulsa una cabecera para ordenar (una vez, otra para invertir y una tercera para volver al orden inicial). Las inversiones («automático») se recalculan solas con los precios reales y tus aportaciones periódicas. Cuentas y bienes son datos guardados${man ? ' (última actualización: ' + fmtF(man) + ')' : ''}.</div>`
 : '<div class="empty">Aún no hay datos del estado financiero.</div>';
 }
 function tipoPat() {   // muestra solo los campos que corresponden al tipo de fila
 const t = $('pTipo').value;
 $('pBancoL').classList.toggle('hidden', t === 'largo'); $('pImpL').classList.toggle('hidden', t !== 'cuenta'); $('pFondoL').classList.toggle('hidden', t !== 'fondo');
-['pCosteL', 'pPendL', 'pCuotaL', 'pPagL'].forEach(i => $(i).classList.toggle('hidden', t !== 'largo'));
+['pCosteL', 'pPPagL', 'pPendL', 'pCuotaL', 'pPagL'].forEach(i => $(i).classList.toggle('hidden', t !== 'largo'));
 $('pOrigenL').classList.toggle('hidden', t !== 'largo' || !DATA.sagunto); $('pCosteL').classList.toggle('hidden', t !== 'largo' || (!!DATA.sagunto && $('pOrigen').checked));
 }
-function abrirPat(id) {
+function abrirPat(id, tipoNuevo) {
 const p = id ? ing.pat.find(x => x.id === id) : null;
 ing.patId = p ? p.id : null; ing.patOrden = p ? p.orden : (ing.pat.reduce((m, x) => Math.max(m, x.orden), 0) + 10);
 $('pTitulo').textContent = p ? 'Editar fila' : 'Añadir fila';
-$('pTipo').value = p ? p.tipo : 'cuenta'; $('pTipo').disabled = !!p;
+$('pTipo').value = p ? p.tipo : (tipoNuevo || 'cuenta'); $('pTipo').disabled = !!p;
 $('pNombre').value = p ? p.nombre : ''; $('pBanco').value = p ? p.banco : '';
 $('pImp').value = p && p.importe != null ? p.importe : '';
 $('pFondo').innerHTML = ing.fondos.map(f => `<option value="${esc(f.id)}">${esc(f.nombre)}</option>`).join('');
 if (p && p.fondoId) $('pFondo').value = p.fondoId;
 $('pCoste').value = p && p.coste != null ? p.coste : '';
 $('pPend').value = p && p.tipo === 'largo' ? pendienteHoy(p) : '';
-$('pCuota').value = p && p.cuota != null ? p.cuota : '';
+$('pCuota').value = p && p.cuota != null ? p.cuota : ''; $('pPPago').value = p && p.pendientePago != null ? p.pendientePago : '';
 $('pPag').checked = p ? !!p.pagado : true; $('pOrigen').checked = !!(p && p.origen === 'sagunto');
 $('pDel').classList.toggle('hidden', !p); $('pErr').textContent = '';
 tipoPat();
@@ -1099,10 +1105,10 @@ e.preventDefault();
 const t = $('pTipo').value, nombre = $('pNombre').value.trim(), nv = id => $(id).value === '' ? null : Math.round(parseFloat($(id).value) * 100) / 100, err = m => { $('pErr').textContent = m; };
 if (!nombre) return err('Indica un nombre.');
 const a = { p_codigo:ing.code, p_id:ing.patId || crypto.randomUUID(), p_tipo:t, p_nombre:nombre, p_banco:t === 'largo' ? '' : $('pBanco').value.trim(), p_orden:ing.patOrden,
-p_importe:null, p_fondo_id:null, p_coste:null, p_pagado:null, p_pendiente:null, p_cuota:null, p_origen:null };
+p_importe:null, p_fondo_id:null, p_coste:null, p_pagado:null, p_pendiente:null, p_cuota:null, p_origen:null, p_pendiente_pago:null };
 if (t === 'cuenta') { a.p_importe = nv('pImp'); if (a.p_importe === null || isNaN(a.p_importe)) return err('Indica el importe actual.'); }
 else if (t === 'fondo') { a.p_fondo_id = $('pFondo').value || null; if (!a.p_fondo_id) return err('Primero crea el fondo o plan en la pestaña Inversión.'); }
-else { a.p_origen = $('pOrigen').checked && DATA.sagunto ? 'sagunto' : null; a.p_coste = a.p_origen ? costeLargo({ origen:'sagunto' }) : nv('pCoste'); a.p_pendiente = nv('pPend') ?? 0; a.p_cuota = nv('pCuota'); a.p_pagado = $('pPag').checked; if (a.p_coste === null) return err('Indica el coste.'); if (a.p_cuota !== null && !(a.p_cuota > 0)) return err('La cuota debe ser mayor que 0.'); }
+else { a.p_origen = $('pOrigen').checked && DATA.sagunto ? 'sagunto' : null; a.p_coste = a.p_origen ? costeLargo({ origen:'sagunto' }) : nv('pCoste'); a.p_pendiente = nv('pPend') ?? 0; a.p_pendiente_pago = nv('pPPago') ?? 0; a.p_cuota = nv('pCuota'); a.p_pagado = $('pPag').checked; if (a.p_coste === null) return err('Indica el coste.'); if (a.p_cuota !== null && !(a.p_cuota > 0)) return err('La cuota debe ser mayor que 0.'); }
 $('pSave').disabled = true;
 const ok = await ingOp(() => rpc('patrimonio_guardar', a));
 $('pSave').disabled = false;
@@ -1246,7 +1252,7 @@ const m = modoIng(), res = m === 'ingreso', X = TXT_ING[m];
 const yr = ing.gran === 'y', hm = hoyStr().slice(0, 7), cy = hm.slice(0, 4);
 $('iYear').classList.add('hidden');
 const verRes = res && ing.estado === 'ok' && vistaFan(), estado = verRes && ing.rsub !== 'graf';   // el estado financiero es de Fan
-$('rSub').classList.toggle('hidden', !verRes); $('iEst').classList.toggle('hidden', !estado); $('iGran').classList.toggle('hidden', estado);
+$('rSub').classList.toggle('hidden', !verRes); $('eSub').classList.toggle('hidden', !(estado && ing.rsub === 'estado')); $('iEst').classList.toggle('hidden', !estado); $('iGran').classList.toggle('hidden', estado);
 document.querySelectorAll('#rSub button').forEach(b => b.setAttribute('aria-pressed', b.dataset.r === (estado ? ing.rsub : 'graf')));
 $('iAdd').disabled = ing.estado !== 'ok'; $('iAdd').textContent = !res && ing.sub === 'planes' ? '+ Nuevo plan' : X.add;
 $('iAdd').classList.toggle('hidden', (!res && ing.sub === 'resumen') || (estado && ing.rsub === 'sim'));
@@ -1610,7 +1616,7 @@ $('iWho').addEventListener('click', e => { const b = e.target.closest('button');
 $('iGran').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.gran = b.dataset.g; LSset('iGran', ing.gran); ing.selKey = null; ing.fresh = true; pintarIng(); } });
 $('iPrevY').onclick = () => { ing.anio = String(+ing.anio - 1); ing.selKey = null; ing.fresh = true; pintarIng(); };
 $('iNextY').onclick = () => { ing.anio = String(+ing.anio + 1); ing.selKey = null; ing.fresh = true; pintarIng(); };
-$('iAdd').onclick = () => (modoIng() === 'ingreso' && ing.rsub === 'estado' && vistaFan()) ? abrirPat(null) : modoIng() === 'inversion' ? abrirFondo(null, ing.sub === 'planes' ? 'plan' : 'fondo') : abrirIng(null);
+$('iAdd').onclick = () => (modoIng() === 'ingreso' && ing.rsub === 'estado' && vistaFan()) ? abrirPat(null, ing.esub === 'largo' ? 'largo' : 'cuenta') : modoIng() === 'inversion' ? abrirFondo(null, ing.sub === 'planes' ? 'plan' : 'fondo') : abrirIng(null);
 $('iChange').onclick = cambiarCodigo;
 $('iRows').addEventListener('submit', e => { if (e.target.id === 'iCodeForm') enviarCodigo(e); });
 $('iRows').addEventListener('click', e => {
@@ -1649,6 +1655,7 @@ if (h) { const [t, k] = h.dataset.ord.split(':'), st = ing.est[t]; const prim = 
 });
 $('iEstB').addEventListener('change', e => { if (e.target.id === 'simF' && e.target.value) { ing.simF = e.target.value; LSset('simF', ing.simF); pintarEstado(); } });
 $('pOrigen').addEventListener('change', tipoPat);
+$('eSub').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.esub = b.dataset.e; LSset('eSub', ing.esub); pintarIng(); } });
 $('pForm').addEventListener('submit', guardarPat);
 $('pCancel').onclick = () => $('pDlg').close();
 $('pDel').onclick = borrarPat;
