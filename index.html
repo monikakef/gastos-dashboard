@@ -1050,7 +1050,8 @@ const btnPat = id => `<button class="btn2" data-pedit="${esc(id)}" type="button"
 // --- tabla principal ---
 const colsP = [['nombre', 'Nombre'], ['banco', 'Banco'], ['imp', 'Importe'], ['sin', 'Total sin rendimientos'], ['inv', 'Invertido'], ['no', 'No inversión'], ['rend', 'Rendimiento'], ['pond', 'Ponderación'], ['rent', 'Rentabilidad'], ['si', '¿Invertido?']];
 const getP = (r, k) => k === 'pond' ? r.imp : k === 'rent' ? (r.inv > 0 ? r.rend / r.inv : null) : k === 'si' ? (r.si ? 1 : 0) : r[k] === '' ? null : r[k];
-const f1 = ordenarPor(filas, ing.est.main, getP).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.auto ? `<span class="sub auto">${esc(r.auto)}</span>` : ''}</td><td>${esc(r.banco)}</td><td><b>${m(r.imp)}</b></td><td>${m(r.sin)}</td><td>${m(r.inv)}</td><td>${m(r.no)}</td><td>${r.rend == null ? '' : sg(r.rend)}</td><td>${totI > 0 ? pc(r.imp / totI) : ''}</td><td>${r.inv > 0 ? `<span class="${r.rend >= 0 ? 'pos' : 'neg'}">${pc(r.rend / r.inv)}</span>` : ''}</td><td>${r.si ? 'SÍ' : 'NO'}</td></tr>`).join('');
+const btnExtra = r => r.F ? `<button class="btn2" data-pextra="${esc(r.fondoId)}" type="button" style="padding:0 7px;font-size:11px;margin-left:4px">+ Aportación</button>` : '';
+const f1 = ordenarPor(filas, ing.est.main, getP).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${btnExtra(r)}${r.auto ? `<span class="sub auto">${esc(r.auto)}</span>` : ''}</td><td>${esc(r.banco)}</td><td><b>${m(r.imp)}</b></td><td>${m(r.sin)}</td><td>${m(r.inv)}</td><td>${m(r.no)}</td><td>${r.rend == null ? '' : sg(r.rend)}</td><td>${totI > 0 ? pc(r.imp / totI) : ''}</td><td>${r.inv > 0 ? `<span class="${r.rend >= 0 ? 'pos' : 'neg'}">${pc(r.rend / r.inv)}</span>` : ''}</td><td>${r.si ? 'SÍ' : 'NO'}</td></tr>`).join('');
 const tot = `<tr class="tot"><td>TOTAL</td><td></td><td>${m(totI)}</td><td>${m(T('sin'))}</td><td>${m(totV)}</td><td>${m(T('no'))}</td><td>${sg(totR)}</td><td>${totI > 0 ? '100,0 %' : ''}</td><td>${totV > 0 ? `<span class="${totR >= 0 ? 'pos' : 'neg'}">${pc(totR / totV)}</span>` : ''}</td><td></td></tr>`;
 // --- largo plazo ---
 const lg = ing.pat.filter(p => p.tipo === 'largo').map(p => {
@@ -1656,6 +1657,7 @@ $('vHistQuitar').onclick = () => { ing.histQuitar = true; ing.histTmp = null; $(
 $('vDel').onclick = borrarFondo;
 $('iEstB').addEventListener('click', e => {
 const b = e.target.closest('[data-pedit]'); if (b) { abrirPat(b.dataset.pedit); return; }
+const x = e.target.closest('[data-pextra]'); if (x) { abrirExtra(x.dataset.pextra, null); return; }
 const h = e.target.closest('[data-ord]');
 if (h) { const [t, k] = h.dataset.ord.split(':'), st = ing.est[t]; const prim = ['nombre', 'banco'].includes(k) ? 1 : -1; if (st.k === k) { if (st.d === prim) st.d = -prim; else { st.k = null; st.d = 1; } } else { st.k = k; st.d = prim; } pintarEstado(); }
 });
