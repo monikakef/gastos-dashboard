@@ -328,10 +328,10 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <label id="pImpL">Importe actual (€)<input id="pImp" type="number" step="0.01" inputmode="decimal" placeholder="1000"></label>
 <label id="pFondoL">Fondo o plan (su importe se calcula solo)<select id="pFondo"></select></label>
 <label id="pCosteL">Coste (€)<input id="pCoste" type="number" step="0.01" min="0" inputmode="decimal" placeholder="16000"></label>
-<label id="pPPagL">Pendiente de pago (€): parte del coste que aún no has pagado<input id="pPPago" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0"></label>
+<label id="pPPagL">Pendiente de pago (€): lo que falta por pagar del coste<input id="pPPago" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0"></label>
 <label id="pPendL">Pendiente de amortización hoy (€)<input id="pPend" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0"></label>
 <label id="pCuotaL">Cuota mensual (opcional: el pendiente baja solo cada mes)<input id="pCuota" type="number" step="0.01" min="0" inputmode="decimal" placeholder="250"></label>
-<label id="pOrigenL"><input type="checkbox" id="pOrigen" style="display:inline-block;width:auto;margin:0 6px 0 0;vertical-align:middle">Coste = total gastado en Sagunto (automático)</label>
+<label id="pOrigenL"><input type="checkbox" id="pOrigen" style="display:inline-block;width:auto;margin:0 6px 0 0;vertical-align:middle">Pagado = total gastado en Sagunto (automático)</label>
 <label id="pPagL"><input type="checkbox" id="pPag" style="display:inline-block;width:auto;margin:0 6px 0 0;vertical-align:middle">Pagado</label>
 <div id="pErr" role="alert" style="color:var(--bad);min-height:1.2em;font-size:13px;margin-bottom:6px"></div>
 <div class="dlgBtns">
@@ -1007,7 +1007,7 @@ const n = Math.max(0, (h[0] - a[0]) * 12 + (h[1] - a[1]) - (h[2] < a[2] ? 1 : 0)
 return Math.max(0, Math.round((p.pendiente - p.cuota * n) * 100) / 100);
 };
 const pendienteHoy = p => pendienteEn(p, hoyStr());
-const costeLargo = p => p.origen === 'sagunto' && DATA.sagunto ? Math.round(sag.items.reduce((t, x) => t + x.total, 0) * 100) / 100 : (p.coste || 0);   // Casa Puerto = total gastado en Sagunto
+const gastadoSagunto = () => DATA.sagunto ? Math.round(sag.items.reduce((t, x) => t + x.total, 0) * 100) / 100 : 0;   // total gastado en Sagunto (el «Pagado» de Casa Puerto)
 function valorFuturo(F, fecha) {   // valor de una inversión en una fecha futura: rentabilidad media + aportaciones periódicas (como en la pestaña Inversión)
 const hoy = hoyStr(); if (fecha <= hoy) return F.hoy;
 const g = Math.pow(1 + F.r, 1 / 12); let v = F.hoy, a = hoy;
@@ -1053,11 +1053,17 @@ const getP = (r, k) => k === 'pond' ? r.imp : k === 'rent' ? (r.inv > 0 ? r.rend
 const f1 = ordenarPor(filas, ing.est.main, getP).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.auto ? `<span class="sub auto">${esc(r.auto)}</span>` : ''}</td><td>${esc(r.banco)}</td><td><b>${m(r.imp)}</b></td><td>${m(r.sin)}</td><td>${m(r.inv)}</td><td>${m(r.no)}</td><td>${r.rend == null ? '' : sg(r.rend)}</td><td>${totI > 0 ? pc(r.imp / totI) : ''}</td><td>${r.inv > 0 ? `<span class="${r.rend >= 0 ? 'pos' : 'neg'}">${pc(r.rend / r.inv)}</span>` : ''}</td><td>${r.si ? 'SÍ' : 'NO'}</td></tr>`).join('');
 const tot = `<tr class="tot"><td>TOTAL</td><td></td><td>${m(totI)}</td><td>${m(T('sin'))}</td><td>${m(totV)}</td><td>${m(T('no'))}</td><td>${sg(totR)}</td><td>${totI > 0 ? '100,0 %' : ''}</td><td>${totV > 0 ? `<span class="${totR >= 0 ? 'pos' : 'neg'}">${pc(totR / totV)}</span>` : ''}</td><td></td></tr>`;
 // --- largo plazo ---
-const lg = ing.pat.filter(p => p.tipo === 'largo').map(p => { const c = costeLargo(p), pp = Math.min(p.pendientePago || 0, c); return { ...p, c, pp, pa:Math.round((c - pp) * 100) / 100, pe:pendienteHoy(p) }; });
+const lg = ing.pat.filter(p => p.tipo === 'largo').map(p => {
+const c = p.coste || 0, auto = p.origen === 'sagunto' && !!DATA.sagunto;
+let pa, pp;
+if (auto) { pa = gastadoSagunto(); pp = p.pagado ? 0 : Math.max(0, Math.round((c - pa) * 100) / 100); }   // pendiente = coste - lo gastado, solo si no está pagado
+else { pp = p.pagado ? 0 : Math.min(p.pendientePago || 0, c); pa = Math.round((c - pp) * 100) / 100; }
+return { ...p, c, pa, pp, auto, pe:pendienteHoy(p) };
+});
 const sumLg = k => lg.reduce((t, r) => t + r[k], 0), tC = sumLg('c'), tP = sumLg('pe'), tPa = sumLg('pa'), tPP = sumLg('pp');
 const colsL = [['nombre', 'Inversión a largo'], ['c', 'Coste'], ['pa', 'Pagado'], ['pp', 'Pendiente Pago'], ['pe', 'Pendiente de amortización'], ['pg', '¿Pagado?']];
 const t2 = lg.length ? `<div class="estW"><table class="est"><thead>${cabeza('lg', colsL, ing.est.lg)}</thead><tbody>`
-+ ordenarPor(lg, ing.est.lg, (r, k) => k === 'pg' ? (r.pagado ? 1 : 0) : r[k]).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.origen === 'sagunto' ? '<span class="sub auto">coste automático · total gastado en Sagunto</span>' : ''}${r.cuota > 0 ? `<span class="sub auto">cuota ${eur.format(r.cuota)}/mes · baja sola</span>` : ''}</td><td>${m(r.c)}</td><td>${m(r.pa)}</td><td>${m(r.pp)}</td><td>${m(r.pe)}</td><td>${r.pagado ? 'SÍ' : 'NO'}</td></tr>`).join('')
++ ordenarPor(lg, ing.est.lg, (r, k) => k === 'pg' ? (r.pagado ? 1 : 0) : r[k]).map(r => `<tr><td>${esc(r.nombre)} ${btnPat(r.id)}${r.auto ? '<span class="sub auto">pagado automático · total gastado en Sagunto</span>' : ''}${r.cuota > 0 ? `<span class="sub auto">cuota ${eur.format(r.cuota)}/mes · baja sola</span>` : ''}</td><td>${m(r.c)}</td><td>${m(r.pa)}</td><td>${m(r.pp)}</td><td>${m(r.pe)}</td><td>${r.pagado ? 'SÍ' : 'NO'}</td></tr>`).join('')
 + `<tr class="tot"><td>TOTAL</td><td>${m(tC)}</td><td>${m(tPa)}</td><td>${m(tPP)}</td><td>${m(tP)}</td><td></td></tr></tbody></table></div>` : '<div class="empty">Aún no hay inversiones a largo plazo. Pulsa «+ Añadir fila».</div>';
 // --- simulación ---
 const simF = r => r.F ? dSim.map(([, d]) => valorFuturo(r.F, d)) : dSim.map(() => r.imp);   // cuentas: sin cambios
@@ -1081,7 +1087,7 @@ function tipoPat() {   // muestra solo los campos que corresponden al tipo de fi
 const t = $('pTipo').value;
 $('pBancoL').classList.toggle('hidden', t === 'largo'); $('pImpL').classList.toggle('hidden', t !== 'cuenta'); $('pFondoL').classList.toggle('hidden', t !== 'fondo');
 ['pCosteL', 'pPPagL', 'pPendL', 'pCuotaL', 'pPagL'].forEach(i => $(i).classList.toggle('hidden', t !== 'largo'));
-$('pOrigenL').classList.toggle('hidden', t !== 'largo' || !DATA.sagunto); $('pCosteL').classList.toggle('hidden', t !== 'largo' || (!!DATA.sagunto && $('pOrigen').checked));
+$('pOrigenL').classList.toggle('hidden', t !== 'largo' || !DATA.sagunto); $('pPPagL').classList.toggle('hidden', t !== 'largo' || $('pPag').checked || (!!DATA.sagunto && $('pOrigen').checked));
 }
 function abrirPat(id, tipoNuevo) {
 const p = id ? ing.pat.find(x => x.id === id) : null;
@@ -1108,7 +1114,7 @@ const a = { p_codigo:ing.code, p_id:ing.patId || crypto.randomUUID(), p_tipo:t, 
 p_importe:null, p_fondo_id:null, p_coste:null, p_pagado:null, p_pendiente:null, p_cuota:null, p_origen:null, p_pendiente_pago:null };
 if (t === 'cuenta') { a.p_importe = nv('pImp'); if (a.p_importe === null || isNaN(a.p_importe)) return err('Indica el importe actual.'); }
 else if (t === 'fondo') { a.p_fondo_id = $('pFondo').value || null; if (!a.p_fondo_id) return err('Primero crea el fondo o plan en la pestaña Inversión.'); }
-else { a.p_origen = $('pOrigen').checked && DATA.sagunto ? 'sagunto' : null; a.p_coste = a.p_origen ? costeLargo({ origen:'sagunto' }) : nv('pCoste'); a.p_pendiente = nv('pPend') ?? 0; a.p_pendiente_pago = nv('pPPago') ?? 0; a.p_cuota = nv('pCuota'); a.p_pagado = $('pPag').checked; if (a.p_coste === null) return err('Indica el coste.'); if (a.p_cuota !== null && !(a.p_cuota > 0)) return err('La cuota debe ser mayor que 0.'); }
+else { a.p_origen = $('pOrigen').checked && DATA.sagunto ? 'sagunto' : null; a.p_coste = nv('pCoste'); a.p_pendiente = nv('pPend') ?? 0; a.p_pendiente_pago = nv('pPPago') ?? 0; a.p_cuota = nv('pCuota'); a.p_pagado = $('pPag').checked; if (a.p_coste === null) return err('Indica el coste.'); if (a.p_cuota !== null && !(a.p_cuota > 0)) return err('La cuota debe ser mayor que 0.'); }
 $('pSave').disabled = true;
 const ok = await ingOp(() => rpc('patrimonio_guardar', a));
 $('pSave').disabled = false;
@@ -1654,7 +1660,7 @@ const h = e.target.closest('[data-ord]');
 if (h) { const [t, k] = h.dataset.ord.split(':'), st = ing.est[t]; const prim = ['nombre', 'banco'].includes(k) ? 1 : -1; if (st.k === k) { if (st.d === prim) st.d = -prim; else { st.k = null; st.d = 1; } } else { st.k = k; st.d = prim; } pintarEstado(); }
 });
 $('iEstB').addEventListener('change', e => { if (e.target.id === 'simF' && e.target.value) { ing.simF = e.target.value; LSset('simF', ing.simF); pintarEstado(); } });
-$('pOrigen').addEventListener('change', tipoPat);
+$('pOrigen').addEventListener('change', tipoPat); $('pPag').addEventListener('change', tipoPat);
 $('eSub').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.esub = b.dataset.e; LSset('eSub', ing.esub); pintarIng(); } });
 $('pForm').addEventListener('submit', guardarPat);
 $('pCancel').onclick = () => $('pDlg').close();
