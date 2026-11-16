@@ -890,20 +890,20 @@ const clase = claseSub(), fs = modeloFondos(+ing.horizonte, clase), resumen = in
 const corta = d => new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' });
 const pc = x => x.toLocaleString('es-ES', { maximumFractionDigits:1 });
 $('iFondosT').textContent = resumen ? 'Todas las inversiones · valor estimado hoy' : clase === 'plan' ? 'Planes de pensiones · valor estimado hoy' : 'Fondos · valor estimado hoy';
-$('iFondosNota').textContent = fs.length > 1 && !resumen ? 'total ' + eur0.format(fs.reduce((s, f) => s + f.hoy, 0)) : '';
+$('iFondosNota').textContent = fs.length > 1 && !resumen ? 'total ' + eur.format(fs.reduce((s, f) => s + f.hoy, 0)) : '';
 let cab = '';
 if (resumen && fs.length) {   // resumen de todas las inversiones: totales y desglose por clase
 const tot = fs.reduce((t, f) => t + f.hoy, 0), ap = fs.reduce((t, f) => t + f.aportado, 0), gn = tot - ap;
 // previsión a 5 y 10 años de cada inversión (manteniendo su rentabilidad y sus aportaciones) y del total
 const punto = S => ({ hoy:S.V[S.iHoy], v5:S.V[S.iHoy + 60], b5:S.B[S.iHoy + 60], v10:S.V[S.iHoy + 120], b10:S.B[S.iHoy + 120] });
 const filas = fs.map(f => ({ nombre:f.nombre, r:f.r, ...punto(serieFondos([f], 10)) })), T = punto(serieFondos(fs, 10));
-const celda = (v, b, tot) => `<div class="r${tot ? ' tot' : ''}"><div class="num"><b>${eur0.format(v)}</b></div>${b === null ? '' : `<div class="num ${b >= 0 ? 'pos' : 'neg'}" style="font-size:11px">${b >= 0 ? '+' : ''}${eur0.format(b)}</div>`}</div>`;
+const celda = (v, b, tot) => `<div class="r${tot ? ' tot' : ''}"><div class="num"><b>${(b === null ? eur : eur0).format(v)}</b></div>${b === null ? '' : `<div class="num ${b >= 0 ? 'pos' : 'neg'}" style="font-size:11px">${b >= 0 ? '+' : ''}${eur0.format(b)}</div>`}</div>`;
 const tabla = `<div class="day" style="margin:10px 0 4px">Previsión · manteniendo la rentabilidad y tus aportaciones</div><div class="prev"><div class="h">Inversión</div><div class="h r">Hoy</div><div class="h r">En 5 años</div><div class="h r">En 10 años</div>`
 + filas.map(f => `<div><div class="d" style="font-size:12.5px">${esc(f.nombre)}</div><div class="c">${pc(f.r * 100)} %/año</div></div>${celda(f.hoy, null)}${celda(f.v5, f.b5)}${celda(f.v10, f.b10)}`).join('')
 + `<div class="tot"><b>Total</b></div>${celda(T.hoy, null, true)}${celda(T.v5, T.b5, true)}${celda(T.v10, T.b10, true)}</div><div class="c" style="margin:4px 0 0;font-size:11.5px;color:var(--ink3)">Bajo cada importe, el beneficio (valor menos lo aportado).</div>`;
-cab = `<div class="tiles" style="margin:0 0 8px;grid-template-columns:repeat(3,1fr)"><div class="tile"><div class="label">Valor hoy</div><div class="v num">${eur0.format(tot)}</div></div><div class="tile"><div class="label">Aportado</div><div class="v num">${eur0.format(ap)}</div></div><div class="tile"><div class="label">Beneficio</div><div class="v num ${gn >= 0 ? 'pos' : 'neg'}">${gn >= 0 ? '+' : ''}${eur0.format(gn)}${ap > 0 ? ' (' + (gn >= 0 ? '+' : '') + pc(gn / ap * 100) + ' %)' : ''}</div></div></div>`
+cab = `<div class="tiles" style="margin:0 0 8px;grid-template-columns:repeat(3,1fr)"><div class="tile"><div class="label">Valor hoy</div><div class="v num">${eur.format(tot)}</div></div><div class="tile"><div class="label">Aportado</div><div class="v num">${eur.format(ap)}</div></div><div class="tile"><div class="label">Beneficio</div><div class="v num ${gn >= 0 ? 'pos' : 'neg'}">${gn >= 0 ? '+' : ''}${eur.format(gn)}${ap > 0 ? ' (' + (gn >= 0 ? '+' : '') + pc(gn / ap * 100) + ' %)' : ''}</div></div></div>`
 + [['fondo', 'Fondos'], ['plan', 'Planes de pensiones']].map(([k, n]) => { const g = fs.filter(f => f.clase === k); if (!g.length) return ''; const v = g.reduce((t, f) => t + f.hoy, 0), a2 = g.reduce((t, f) => t + f.aportado, 0);
-return `<div class="row"><div><div class="d">${n} <span class="label">(${g.length})</span></div><div class="c">Aportado ${eur0.format(a2)} · beneficio <span class="${v - a2 >= 0 ? 'pos' : 'neg'}">${v - a2 >= 0 ? '+' : ''}${eur0.format(v - a2)}</span></div></div><div class="m num">${eur.format(v)}</div></div>`; }).join('')
+return `<div class="row"><div><div class="d">${n} <span class="label">(${g.length})</span></div><div class="c">Aportado ${eur.format(a2)} · beneficio <span class="${v - a2 >= 0 ? 'pos' : 'neg'}">${v - a2 >= 0 ? '+' : ''}${eur.format(v - a2)}</span></div></div><div class="m num">${eur.format(v)}</div></div>`; }).join('')
 + tabla + '<div class="day" style="margin:10px 0 2px">Detalle</div>';
 }
 const vacio = resumen ? 'Aún no hay fondos ni planes. Añádelos en las pestañas Fondos y Plan de pensiones.'
@@ -915,16 +915,16 @@ const viejo = f.px && f.px.importado && diasEntre(f.fechaNav, hoyStr()) > 10;
 const precio = f.px && f.px.importado ? `VL importado ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:4 })} € (${corta(f.fechaNav)})${viejo ? ' · histórico desactualizado: vuelve a importarlo' : ''}` : !f.isin ? sinPrecios : f.px ? `${f.viaRef ? 'Siguiendo el fondo ' + esc(f.isin) + ' · ' : ''}VL ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:2 })} € (${corta(f.fechaNav)})`
 : f.pxEstado === 'error' ? `sin precios (${esc(f.pxMsg || 'error')}) · <a href="#" data-retry="${esc(f.isin)}" style="color:var(--s1)">reintentar</a>` : 'buscando precios…';
 const pct = f.aportado > 0 ? ' (' + (f.gan >= 0 ? '+' : '') + pc(f.gan / f.aportado * 100) + ' %)' : '';
-const plan = f.f.aporte ? `Aportas ${eur0.format(f.f.aporte)} ${NOMBRE_PER[f.f.per]} desde ${corta(f.f.desde)}${f.f.hasta ? ' hasta ' + corta(f.f.hasta) : ''}` : 'sin aportación periódica';
-const base = f.anclado ? `Partes de ${eur0.format(f.v0)} (aportado ${eur0.format(f.aport0)}) el ${corta(f.d0)}` : 'Reconstruido desde la primera aportación';
-const iniTxt = f.f.inicial ? `Inicial ${eur0.format(f.f.inicial)} (${corta(f.f.inicialFecha)}) · ` : '';
-const extrasTxt = f.extras.length ? ` · ${f.extras.length} extra${f.extras.length === 1 ? '' : 's'} (${eur0.format(f.extras.reduce((t, x) => t + x.amount, 0))})` : '';
+const plan = f.f.aporte ? `Aportas ${eur.format(f.f.aporte)} ${NOMBRE_PER[f.f.per]} desde ${corta(f.f.desde)}${f.f.hasta ? ' hasta ' + corta(f.f.hasta) : ''}` : 'sin aportación periódica';
+const base = f.anclado ? `Partes de ${eur.format(f.v0)} (aportado ${eur.format(f.aport0)}) el ${corta(f.d0)}` : 'Reconstruido desde la primera aportación';
+const iniTxt = f.f.inicial ? `Inicial ${eur.format(f.f.inicial)} (${corta(f.f.inicialFecha)}) · ` : '';
+const extrasTxt = f.extras.length ? ` · ${f.extras.length} extra${f.extras.length === 1 ? '' : 's'} (${eur.format(f.extras.reduce((t, x) => t + x.amount, 0))})` : '';
 const tag = resumen ? ` <span class="label">${f.clase === 'plan' ? 'plan de pensiones' : 'fondo'}</span>` : '';
 return `<div class="row" data-fondo="${esc(f.nombre)}" style="cursor:pointer;${ing.fondoSel === norm(f.nombre) ? 'background:var(--grid);border-radius:8px;padding-left:6px;padding-right:6px' : ''}"><div>
 <div class="d">${esc(f.nombre)}${tag} <button class="btn2" data-edit="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">Editar</button><button class="btn2" data-extra="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">+ Aportación</button></div>
 <div class="c">${f.codigo ? esc(f.codigo) + ' · ' : ''}${precio}</div>
 <div class="c">${iniTxt}${plan}${extrasTxt} · ${base}</div>
-<div class="c">Aportado ${eur0.format(f.aportado)} · beneficio <span class="${f.gan >= 0 ? 'pos' : 'neg'}">${f.gan >= 0 ? '+' : ''}${eur0.format(f.gan)}${pct}</span> · rentab. ${pc(f.r * 100)} %/año (${f.rFuente})</div>
+<div class="c">Aportado ${eur.format(f.aportado)} · beneficio <span class="${f.gan >= 0 ? 'pos' : 'neg'}">${f.gan >= 0 ? '+' : ''}${eur.format(f.gan)}${pct}</span> · rentab. ${pc(f.r * 100)} %/año (${f.rFuente})</div>
 </div><div class="m num">${eur.format(f.hoy)}</div></div>`;
 }).join('') : `<div class="empty" style="padding:8px 0;font-size:13px">${vacio}</div>`);
 }
@@ -941,7 +941,7 @@ if (!sel.length) { box.innerHTML = `<div class="empty">${ing.sub === 'planes' ? 
 if (dia) { pintarDia(sel, box); return; }
 const S = serieFondos(sel, +ing.horizonte), n = S.V.length - 1, h = S.iHoy, tot = sel.reduce((s, f) => s + f.hoy, 0);
 const rPond = tot > 0 ? sel.reduce((s, f) => s + f.r * f.hoy, 0) / tot : 0;
-$('iProyRes').innerHTML = `Hoy <b>${eur0.format(S.V[h])}</b> (beneficio <span class="${S.B[h] >= 0 ? 'pos' : 'neg'}">${eur0.format(S.B[h])}</span>) · en ${ing.horizonte} años ≈ <b>${eur0.format(S.V[n])}</b>: aportado ${eur0.format(S.C[n])}, beneficio <span class="pos">${eur0.format(S.B[n])}</span> · con ${(rPond * 100).toLocaleString('es-ES', { maximumFractionDigits:1 })} %/año`;
+$('iProyRes').innerHTML = `Hoy <b>${eur.format(S.V[h])}</b> (beneficio <span class="${S.B[h] >= 0 ? 'pos' : 'neg'}">${eur.format(S.B[h])}</span>) · en ${ing.horizonte} años ≈ <b>${eur0.format(S.V[n])}</b>: aportado ${eur0.format(S.C[n])}, beneficio <span class="pos">${eur0.format(S.B[n])}</span> · con ${(rPond * 100).toLocaleString('es-ES', { maximumFractionDigits:1 })} %/año`;
 dibujarProy(box, S);
 }
 const mesMax = () => hoyStr().slice(0, 7), mesMin = () => INI_GRAFICA.slice(0, 7);
@@ -962,7 +962,7 @@ const V = G.map(d => sel.reduce((t, f) => t + f.valor(d), 0)), C = G.map(d => se
 const n = G.length, d00 = sumarDias(G[0], -1), v00 = sel.reduce((t, f) => t + f.valor(d00), 0), b00 = v00 - sel.reduce((t, f) => t + f.cont(d00), 0);
 const camb = B[n - 1] - b00, nav = sel.map(f => f.fechaNav).filter(Boolean).sort().pop();
 const corta = d => new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' });
-$('iProyRes').innerHTML = `${capital(new Date(ay, am - 1, 1).toLocaleDateString('es-ES', { month:'long', year:'numeric' }))}: <b>${eur.format(V[n - 1])}</b> el ${corta(G[n - 1])} · beneficio del mes <span class="${camb >= 0 ? 'pos' : 'neg'}">${camb >= 0 ? '+' : ''}${eur.format(camb)}${v00 > 0 ? ' (' + (camb >= 0 ? '+' : '') + (camb / v00 * 100).toLocaleString('es-ES', { maximumFractionDigits:1 }) + ' %)' : ''}</span> · aportado ${eur0.format(C[n - 1])}${nav ? ' · último VL publicado: ' + corta(nav) : ''}`;
+$('iProyRes').innerHTML = `${capital(new Date(ay, am - 1, 1).toLocaleDateString('es-ES', { month:'long', year:'numeric' }))}: <b>${eur.format(V[n - 1])}</b> el ${corta(G[n - 1])} · beneficio del mes <span class="${camb >= 0 ? 'pos' : 'neg'}">${camb >= 0 ? '+' : ''}${eur.format(camb)}${v00 > 0 ? ' (' + (camb >= 0 ? '+' : '') + (camb / v00 * 100).toLocaleString('es-ES', { maximumFractionDigits:1 }) + ' %)' : ''}</span> · aportado ${eur.format(C[n - 1])}${nav ? ' · último VL publicado: ' + corta(nav) : ''}`;
 dibujarProy(box, { G, iHoy:n - 1, V, C, B, diario:true });
 }
 function dibujarProy(box, S) {
@@ -990,7 +990,7 @@ const mover = ev => {
 const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) / r.width * W;
 const i = Math.max(0, Math.min(n - 1, Math.round((px - L) / (W - L - R) * (n - 1))));
 $('pCross').classList.remove('hidden'); $('pCl').setAttribute('x1', x(i)); $('pCl').setAttribute('x2', x(i));
-const e = dia ? eur : eur0;
+const e = dia || i <= iHoy ? eur : eur0;
 tip.innerHTML = `<b>${new Date(G[i] + 'T12:00:00').toLocaleDateString('es-ES', dia ? { weekday:'short', day:'numeric', month:'short', year:'numeric' } : { month:'short', year:'numeric' })}</b>${i > iHoy ? ' · proyección' : ''}<br>Valor ${e.format(V[i])}<br><span style="color:var(--ink2)">Aportado ${e.format(C[i])}</span><br><span class="${B[i] >= 0 ? 'pos' : 'neg'}">Beneficio ${e.format(B[i])}</span>`;
 tip.classList.remove('hidden');
 tip.style.left = Math.min(Math.max(x(i) / W * r.width - 50, 0), r.width - 130) + 'px';
