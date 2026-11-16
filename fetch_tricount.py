@@ -29,7 +29,7 @@ def descargar(key):
     app_id = str(uuid.uuid4())
     pub, _priv = rsa.newkeys(2048)
     headers = {
-        "User-Agent": "com.bunq.tricount.android:RELEASE:7.0.7:3174:ANDROID:13:C",
+        "User-Agent": "com.bunq.tricount.android:RELEASE:14.8.2:500004156:ANDROID:13:C",
         "app-id": app_id,
         "X-Bunq-Client-Request-Id": "049bfcdf-6ae4-4cee-af7b-45da31ea85d0",
     }

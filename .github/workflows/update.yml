@@ -31,11 +31,15 @@ jobs:
           TRICOUNT_KEY_SAGUNTO: ${{ secrets.TRICOUNT_KEY_SAGUNTO }}
           DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
         run: |
-          python fetch_tricount.py transactions.json
-          if [ -n "$TRICOUNT_KEY_SAGUNTO" ]; then
-            python fetch_tricount.py sagunto.json --key-env=TRICOUNT_KEY_SAGUNTO
+          if python fetch_tricount.py transactions.json && { [ -z "$TRICOUNT_KEY_SAGUNTO" ] || python fetch_tricount.py sagunto.json --key-env=TRICOUNT_KEY_SAGUNTO; }; then
+            python build.py transactions.json sagunto.json
+          else
+            # Tricount no responde: se publica igualmente la web con el último data.json ya publicado (sigue cifrado)
+            echo "::warning::No se pudo descargar de Tricount; se reutiliza el último data.json publicado"
+            mkdir -p site
+            curl -fsS https://monikakef.github.io/gastos-dashboard/data.json -o site/data.json
+            cp index.html icon.svg icon-192.png icon-512.png apple-touch-icon.png manifest.webmanifest site/
           fi
-          python build.py transactions.json sagunto.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
