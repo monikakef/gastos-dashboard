@@ -219,6 +219,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <button class="btn" type="submit">Entrar</button>
 </form>
 <main id="app" class="hidden">
+<div id="stale" class="hidden" role="alert" style="margin:0 0 10px;padding:9px 12px;border:1px solid var(--bad);border-radius:10px;color:var(--bad);font-size:13px;line-height:1.4"></div>
 <div class="views" id="views"><div class="seg" role="group" aria-label="Vista">
 <button data-v="gastos" aria-pressed="true">Gastos</button>
 <button data-v="hist" aria-pressed="false">Categorías</button>
@@ -545,6 +546,9 @@ months = [...set].sort();
 firstMonth = months[0];
 state.month = hm;
 $('updated').textContent = 'Actualizado ' + new Date(DATA.generated).toLocaleString('es-ES', { dateStyle:'short', timeStyle:'short' }) + ' ·';
+{ const gen = new Date(DATA.generated), horas = (Date.now() - gen) / 36e5, st = $('stale');   // aviso si Tricount lleva sin actualizarse (la web se regenera varias veces al día)
+st.classList.toggle('hidden', !(horas > 18));
+if (horas > 18) st.textContent = '⚠️ Los gastos no se actualizan desde el ' + gen.toLocaleString('es-ES', { dateStyle:'medium', timeStyle:'short' }) + ' (hace ' + (horas >= 48 ? Math.floor(horas / 24) + ' días' : Math.round(horas) + ' h') + '). Es posible que Tricount no esté respondiendo: lo que ves puede no incluir los últimos gastos.'; }
 setTab(tab);
 pintar();
 iniciarHist();
