@@ -776,10 +776,19 @@ let lo = 0, hi = serie.length - 1, r = -1;
 while (lo <= hi) { const mid = (lo + hi) >> 1; if (serie[mid][0] <= d) { r = mid; lo = mid + 1; } else hi = mid - 1; }
 return serie[r < 0 ? 0 : r][1];
 }
+// Frecuencia de precios: ETF casi en directo (2 min); fondos y planes se refrescan a las 00:00, 08:00, 15:00 y 19:00 (hora de Madrid)
+const offMadrid = t => { const p = new Intl.DateTimeFormat('en-US', { timeZone:'Europe/Madrid', hourCycle:'h23', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' }).formatToParts(new Date(t)), g = k => +p.find(x => x.type === k).value; return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - Math.floor(t / 1000) * 1000; };
+function ultimoSlot(now) {
+const off = offMadrid(now), l = new Date(now + off), y = l.getUTCFullYear(), m = l.getUTCMonth(), d = l.getUTCDate();
+let best = 0;
+for (const dd of [d - 1, d]) for (const h of [0, 8, 15, 19]) { const wall = Date.UTC(y, m, dd, h), t = wall - offMadrid(wall - off); if (t <= now && t > best) best = t; }
+return best;
+}
+const pxVigente = c => c.d && c.d.tipo === 'ETF' ? Date.now() - c.t < 120e3 : c.t >= ultimoSlot(Date.now());
 function cargarPrecios(isin, force) {
 const p = precios[isin];
 if (!force && p) return;   // ya cargado, en curso o fallido: un fallo solo se reintenta a mano (botón «reintentar»)
-if (!force) { try { const c = JSON.parse(LS('px_' + isin) || 'null'); if (c && Date.now() - c.t < 3 * 3600e3) { precios[isin] = { estado:'ok', ...c.d }; return; } } catch (e) {} }
+if (!force) { try { const c = JSON.parse(LS('px_' + isin) || 'null'); if (c && pxVigente(c)) { precios[isin] = { estado:'ok', ...c.d }; return; } } catch (e) {} }
 precios[isin] = { estado:'cargando' };
 fetch(SB.url + '/functions/v1/precios-fondo', { method:'POST', headers:{ apikey:SB.key, 'Content-Type':'application/json' }, body:JSON.stringify({ codigo:ing.code, isin }) })
 .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Error ' + r.status); precios[isin] = { estado:'ok', ...j }; LSset('px_' + isin, JSON.stringify({ t:Date.now(), d:j })); })
