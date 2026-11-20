@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#e9eeea" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1512" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Gastos del mes</title>
@@ -13,6 +13,8 @@
 <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&display=swap">
 <style>
 :root {
 color-scheme: light;
@@ -205,6 +207,27 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 #iProy { flex:none !important; height:520px; min-height:0 !important; }
 .fRow { flex:none; }
 }
+/* Tema «libro de cuentas»: niebla verdosa, tinta verde-negra y azul ultramar. Las cifras grandes van en Bricolage Grotesque; el resto, tipografía del sistema. La tarjeta principal de cada vista es la única pieza invertida. */
+:root { --surface:#e9eeea; --card:#f7f9f6; --line:#cdd7d0; --grid:#dbe3dd; --ink:#10201c; --ink2:#46564f; --ink3:#76857e;
+--s1:#2b3fd6; --s2:#e8603c; --s3:#b7860b; --prev:#7f8c86; --good:#16794c; --bad:#c23a2c;
+--heroBg:#10201c; --heroInk:#eef4f0; --heroSub:#a9bab1; --heroGood:#7fe3b3; --heroBad:#ffb4a8; --fig:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+@media (prefers-color-scheme: dark) {
+:root { --surface:#0e1512; --card:#17211c; --line:#26342d; --grid:#1f2b25; --ink:#e8efea; --ink2:#b4c2ba; --ink3:#83938b;
+--s1:#7388ff; --s2:#ff8a65; --s3:#e3b341; --prev:#83938b; --good:#5cd6a0; --bad:#ff8f85;
+--heroBg:#2b3fd6; --heroInk:#f4f6ff; --heroSub:#c9d0ff; --heroGood:#a6f5cf; --heroBad:#ffc2b8; }
+}
+.btn { background:#2b3fd6; }
+.seg button[aria-pressed=true] { background:var(--ink); color:var(--surface); }
+.hero { background:var(--heroBg); color:var(--heroInk); border-color:transparent; }
+.hero .label, .hero .delta, .hero h2 { color:var(--heroSub); }
+.hero .big, .hero .tile .v { color:var(--heroInk); font-family:var(--fig); }
+.hero .big { font-weight:700; letter-spacing:-1.2px; font-size:38px; }
+.sag .hero .big { font-size:38px; }
+.hero .tile { border-top-color:rgba(255,255,255,.22); }
+.hero #iHero { color:var(--heroGood) !important; }
+.hero .pos, .hero .down { color:var(--heroGood); } .hero .neg, .hero .up { color:var(--heroBad); }
+.tile .v { font-family:var(--fig); }
+@media (min-width:900px) { .hero .big, .sag .hero .big { font-size:44px; } }
 </style>
 </head>
 <body>
