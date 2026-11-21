@@ -23,13 +23,17 @@ jobs:
         env:
           TRICOUNT_KEY: ${{ secrets.TRICOUNT_KEY }}
           TRICOUNT_KEY_SAGUNTO: ${{ secrets.TRICOUNT_KEY_SAGUNTO }}
+          TRICOUNT_KEY_BODA: ${{ secrets.TRICOUNT_KEY_BODA }}
           DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
         run: |
           python fetch_tricount.py transactions.json
           if [ -n "$TRICOUNT_KEY_SAGUNTO" ]; then
             python fetch_tricount.py sagunto.json --key-env=TRICOUNT_KEY_SAGUNTO
           fi
-          python build.py transactions.json sagunto.json
+          if [ -n "$TRICOUNT_KEY_BODA" ]; then
+            python fetch_tricount.py boda.json --key-env=TRICOUNT_KEY_BODA
+          fi
+          python build.py transactions.json sagunto.json boda.json
           mkdir backup
           cp site/data.json "backup/data-$(date -u +%F).json"
       - uses: actions/upload-artifact@v4

@@ -31,10 +31,11 @@ jobs:
         env:
           TRICOUNT_KEY: ${{ secrets.TRICOUNT_KEY }}
           TRICOUNT_KEY_SAGUNTO: ${{ secrets.TRICOUNT_KEY_SAGUNTO }}
+          TRICOUNT_KEY_BODA: ${{ secrets.TRICOUNT_KEY_BODA }}
           DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
         run: |
-          if python fetch_tricount.py transactions.json && { [ -z "$TRICOUNT_KEY_SAGUNTO" ] || python fetch_tricount.py sagunto.json --key-env=TRICOUNT_KEY_SAGUNTO; }; then
-            python build.py transactions.json sagunto.json
+          if python fetch_tricount.py transactions.json && { [ -z "$TRICOUNT_KEY_SAGUNTO" ] || python fetch_tricount.py sagunto.json --key-env=TRICOUNT_KEY_SAGUNTO; } && { [ -z "$TRICOUNT_KEY_BODA" ] || python fetch_tricount.py boda.json --key-env=TRICOUNT_KEY_BODA; }; then
+            python build.py transactions.json sagunto.json boda.json
           else
             # Tricount no responde: se publica igualmente la web con el último data.json ya publicado (sigue cifrado)
             echo "::warning::No se pudo descargar de Tricount; se reutiliza el último data.json publicado"
