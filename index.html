@@ -85,6 +85,8 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .pane.on { display:flex; }
 .pane h2 { display:none; }
 .cat { display:grid; grid-template-columns:1fr auto; gap:1px 8px; margin-bottom:9px; font-size:13px; }
+.cat { cursor:pointer; border-radius:8px; margin-left:-4px; margin-right:-4px; padding:2px 4px; } .cat:hover { background:var(--grid); } .cat.sel { background:var(--grid); box-shadow:inset 3px 0 0 var(--s1); }
+.catchip { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 6px; padding:5px 8px; border-radius:8px; background:var(--grid); font-size:12.5px; } .catchip button { border:0; background:none; color:var(--s1); font-size:12.5px; padding:2px 4px; }
 .cat .a { text-align:right; font-weight:600; }
 .cat .a small { font-weight:400; color:var(--ink3); margin-left:4px; }
 .cat .vs { grid-column:1 / -1; font-size:11px; color:var(--ink3); margin-top:-1px; }
@@ -505,7 +507,7 @@ const LS = k => { try { return localStorage.getItem(k); } catch (e) { return nul
 const LSset = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 let DATA = null, months = [], firstMonth = '', tab = LS('tab') || 'cats';
-const state = { month:null, who:LS('who') || null, q:'' };
+const state = { month:null, who:LS('who') || null, q:'', cat:null };
 const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 async function descifrar(pw) {
 const r = await fetch('data.json?t=' + Date.now(), { cache:'no-store' });
@@ -1604,7 +1606,7 @@ const mx = arr[0][1];
 $('cats').innerHTML = arr.map(([n, v]) => {
 const ref = avgBy[n] || 0;
 const vs = !ms.length ? '' : ref > 0 ? `${chip(v, ref)} <span class="n">media ${eur0.format(ref)}</span>` : '<span class="n">sin referencia en la media</span>';
-return `<div class="cat"><span>${esc(n)}</span><span class="a num">${eur.format(v)}<small>${Math.round(v / total * 100)}%</small></span>
+return `<div class="cat${state.cat === n ? ' sel' : ''}" data-cat="${esc(n)}" role="button" tabindex="0" aria-pressed="${state.cat === n}"><span>${esc(n)}</span><span class="a num">${eur.format(v)}<small>${Math.round(v / total * 100)}%</small></span>
 <div class="bar"><span style="width:${(v / mx * 100).toFixed(1)}%"></span></div>${vs ? `<div class="vs">${vs}</div>` : ''}</div>`;
 }).join('');
 }
@@ -1625,11 +1627,12 @@ document.querySelectorAll('[data-sort]').forEach(s => s.value = sortMode);
 if (!$('app').classList.contains('hidden') && DATA) { pintarLista(delMes(state.month)); if (sag.view === 'hist') dibujarHist(false); }
 }
 function pintarLista(cur) {
-const q = norm(state.q), f = q ? cur.filter(t => norm(t.desc).includes(q)) : cur;
-$('count').textContent = q ? `${f.length} de ${cur.length} mov. · ${eur0.format(f.reduce((s, t) => s + importe(t), 0))}` : cur.length + ' mov.';
-if (!f.length) { $('list').innerHTML = `<div class="empty">${q ? 'Ningún movimiento coincide con la búsqueda' : 'Todavía no hay gastos en este mes'}</div>`; return; }
+const q = norm(state.q), c = state.cat, f = cur.filter(t => (!c || catOf(t) === c) && (!q || norm(t.desc).includes(q)));
+const chipCat = c ? `<div class="catchip"><span>Categoría: <b>${esc(c)}</b></span><button type="button" data-quitarcat>Quitar filtro</button></div>` : '';
+$('count').textContent = q || c ? `${f.length} de ${cur.length} mov. · ${eur0.format(f.reduce((s, t) => s + importe(t), 0))}` : cur.length + ' mov.';
+if (!f.length) { $('list').innerHTML = chipCat + `<div class="empty">${q ? 'Ningún movimiento coincide con la búsqueda' : c ? 'No hay gastos de esta categoría este mes' : 'Todavía no hay gastos en este mes'}</div>`; return; }
 const porDia = sortMode === 'fecha' || sortMode === 'antiguos';
-let html = '', last = '';
+let html = chipCat, last = '';
 ordenar(f).forEach(t => {
 if (porDia && t.d !== last) { last = t.d; html += `<div class="day">${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'short' })}</div>`; }
 const extra = state.who !== 'Total' && t.total !== importe(t) ? ` · total ${eur.format(t.total)}` : '';
@@ -1648,6 +1651,11 @@ $('paneList').classList.toggle('on', t === 'list');
 $('lock').addEventListener('submit', e => { e.preventDefault(); entrar($('pw').value.trim(), $('remember').checked); });
 const cambiarWho = e => { const b = e.target.closest('button'); if (!b) return; state.who = b.dataset.p; LSset('who', state.who); pintar(); if (sag.view === 'hist') pintarHist(); };
 $('who').addEventListener('click', cambiarWho);
+// Tocar una categoría filtra los movimientos por ella; volver a tocarla (o «Quitar filtro») los muestra todos. En móvil salta a la lista.
+function elegirCat(c) { state.cat = state.cat === c ? null : c; pintar(); if (state.cat && $('tabs').offsetParent) setTab('list'); }
+$('cats').addEventListener('click', e => { const r = e.target.closest('[data-cat]'); if (r) elegirCat(r.dataset.cat); });
+$('cats').addEventListener('keydown', e => { const r = e.target.closest('[data-cat]'); if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); elegirCat(r.dataset.cat); } });
+$('list').addEventListener('click', e => { if (e.target.closest('[data-quitarcat]')) { state.cat = null; pintar(); } });
 $('hWho').addEventListener('click', cambiarWho);
 $('sWho').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.who = b.dataset.p; LSset('who', state.who); pintarSagunto(); });
 $('hGran').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { hist.gran = b.dataset.g; LSset('hGran', hist.gran); pintarHist(); } });
