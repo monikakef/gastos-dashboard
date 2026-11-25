@@ -116,8 +116,11 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .btn.sm { padding:8px 14px; font-size:14px; }
 .btn2 { padding:8px 14px; font-size:14px; border-radius:12px; border:1px solid var(--line); background:none; color:var(--ink); }
 .btn2.danger { color:var(--bad); }
-#ing .top { flex-wrap:wrap; }
+#ing .top { flex-wrap:wrap; justify-content:flex-start; gap:6px; }
+#ing .top .btn.sm { margin-left:auto; }
+#ing .seg button { padding:5px 9px; }
 #iSub, #rSub { flex:1 1 100%; } #rSub button { flex:1; padding:6px 4px; font-size:12.5px; white-space:nowrap; } #iSub button { flex:1; padding:6px 4px; font-size:12.5px; white-space:nowrap; }
+@media (min-width:700px) { #iSub, #rSub { flex:none; } #rSub button, #iSub button { flex:none; padding:5px 12px; } }
 #ing .tiles { grid-template-columns:repeat(auto-fit, minmax(74px, 1fr)); }
 .prev { display:grid; grid-template-columns:minmax(70px, 1.5fr) repeat(3, minmax(0, 1fr)); gap:6px 8px; font-size:12.5px; align-items:start; }
 .prev .h { color:var(--ink3); font-size:11px; } .prev .c { color:var(--ink3); font-size:11.5px; } .prev .r { text-align:right; }
