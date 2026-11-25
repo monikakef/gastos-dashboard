@@ -304,6 +304,8 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <button data-g="m" aria-pressed="true">Meses</button>
 <button data-g="y" aria-pressed="false">Años</button>
 </div>
+<div class="seg hidden" id="iHSeg" role="group" aria-label="Histórico del fondo"><button id="iVHist" type="button" aria-pressed="false">Histórico</button></div>
+<div class="seg hidden" id="iHRango" role="group" aria-label="Periodo del histórico"><button data-hr="7d" aria-pressed="false">7 días</button><button data-hr="1m" aria-pressed="true">1 mes</button><button data-hr="3m" aria-pressed="false">3 meses</button><button data-hr="1y" aria-pressed="false">1 año</button><button data-hr="3y" aria-pressed="false">3 años</button></div>
 <button class="btn sm" id="iAdd" type="button">+ Añadir ingreso</button>
 <button class="btn2 hidden" id="iChange" type="button" title="Cambiar el código de acceso a los ingresos">Cambiar código</button>
 </div>
@@ -709,6 +711,7 @@ setView();
 /* ---------- Resumen e Inversión: filas en Supabase, protegidas con un código de acceso propio ---------- */
 const SB = { url:'https://gzewqeoqsgoljzuglwpc.supabase.co', key:'sb_publishable_d2gsiwOPJwDyoKoIjgKIvA_WbVyoBJf' };
 const ing = { anio:null, items:[], fondos:[], estado:'idle', msg:'', hayCodigo:null, code:LS('ingCode') || '', gran:LS('iGran') === 'y' ? 'y' : 'm', selKey:null, fresh:true, editId:null, sub:['aport', 'fondos', 'planes', 'resumen'].includes(LS('iSub')) ? LS('iSub') : 'aport', horizonte:['5', '10', '20', '30'].includes(LS('iHor')) ? LS('iHor') : '10', fondoSel:null, pat:[], esub:LS('eSub') === 'largo' ? 'largo' : 'resumen', est:{ main:{ k:null, d:1 }, lg:{ k:null, d:1 }, sim:{ k:null, d:1 } }, simF:LS('simF') || '2028-05-06', rsub:['estado', 'sim'].includes(LS('rSub')) ? LS('rSub') : 'graf', vista:LS('iVista') === 'dia' ? 'dia' : 'mes', diaMes:null };
+ing.hr = ['7d', '1m', '3m', '1y', '3y'].includes(LS('iHr')) ? LS('iHr') : '1m';   // periodo del histórico de un fondo
 const TOPE_RESUMEN = 5000;   // máximo visible en la gráfica mes a mes del Resumen (€)
 const modoIng = () => sag.view === 'inv' ? 'inversion' : 'ingreso';  // la pestaña Resumen gestiona ingresos; Inversión, inversiones
 const CATS_ING = { ingreso:['Nómina', 'Paga extra', 'Alquiler', 'Devolución', 'Intereses', 'Otros'],
@@ -977,16 +980,65 @@ return `<div class="row" data-fondo="${esc(f.nombre)}" style="cursor:pointer;${i
 </div><div class="m num">${eur.format(f.hoy)}</div></div>`;
 }).join('') : `<div class="empty" style="padding:8px 0;font-size:13px">${vacio}</div>`);
 }
+const HIST_DIAS = { '7d':7, '1m':30, '3m':91, '1y':365, '3y':1095 }, HIST_NOMBRE = { '7d':'7 días', '1m':'1 mes', '3m':'3 meses', '1y':'1 año', '3y':'3 años' };
+function pintarHistFondo(f, box) {   // valor liquidativo del fondo seleccionado en 7 días, 1 mes, 3 meses, 1 año o 3 años
+const rango = ing.hr, s = f.px ? f.px.serie : null, desde = s ? sumarDias(s[s.length - 1][0], -HIST_DIAS[rango]) : '';   // el periodo se cuenta hacia atrás desde el último precio publicado
+$('iProyT').textContent = 'Histórico · ' + f.nombre;
+document.querySelectorAll('#iHRango button').forEach(b => b.setAttribute('aria-pressed', b.dataset.hr === rango));
+if (!s) { box.innerHTML = '<div class="empty">Este fondo no tiene precios todavía: añade su ISIN o importa su histórico (Editar).</div>'; $('iProyRes').innerHTML = ''; return; }
+let pts = s.filter(p => p[0] >= desde);
+const previo = s.filter(p => p[0] < desde).pop();
+if (pts.length < 2 && previo) pts = [previo, ...pts];
+if (pts.length < 2) { box.innerHTML = '<div class="empty">No hay suficientes precios en este periodo.</div>'; $('iProyRes').innerHTML = ''; return; }
+const ini = previo ? previo[1] : pts[0][1], fin = pts[pts.length - 1][1], vr = (fin / ini - 1) * 100;
+const corta = d => new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short', year:'numeric' });
+const vl = v => v.toLocaleString('es-ES', { minimumFractionDigits:2, maximumFractionDigits:4 });
+const mx = Math.max(...pts.map(p => p[1])), mn = Math.min(...pts.map(p => p[1]));
+const corto = !previo && pts[0][0] > sumarDias(desde, 10) ? ` · el histórico disponible empieza el ${corta(pts[0][0])}` : '';
+$('iProyRes').innerHTML = `${HIST_NOMBRE[rango]}: <b class="${vr >= 0 ? 'pos' : 'neg'}">${vr >= 0 ? '+' : ''}${vr.toLocaleString('es-ES', { maximumFractionDigits:2 })} %</b> · VL ${vl(fin)} € (${corta(pts[pts.length - 1][0])}) · antes ${vl(ini)} € · máx ${vl(mx)} € · mín ${vl(mn)} €${corto}`;
+const W = Math.max(box.clientWidth, 220), H = Math.max(box.clientHeight, 150), L = 50, R = 10, T = 8, Bm = 20;
+const t0 = uUTC(pts[0][0]), t1 = uUTC(pts[pts.length - 1][0]), pad = Math.max((mx - mn) * .12, mx * .002), lo = mn - pad, hi = mx + pad;
+const x = d => L + (t1 > t0 ? (uUTC(d) - t0) / (t1 - t0) : .5) * (W - L - R), y = v => T + (1 - (v - lo) / (hi - lo)) * (H - T - Bm);
+const step = niceStep((hi - lo) / Math.max(2, Math.floor((H - T - Bm) / 36)));
+let g = '';
+for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--grid)"/><text x="${L - 5}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" font-size="10.5" fill="var(--ink3)">${v.toLocaleString('es-ES', { minimumFractionDigits:step < 1 ? 2 : 0, maximumFractionDigits:2 })}</text>`;
+const fmtX = d => new Date(d + 'T12:00:00').toLocaleDateString('es-ES', HIST_DIAS[rango] >= 365 ? { month:'short', year:'2-digit' } : { day:'numeric', month:'short' });
+const nl = Math.min(5, Math.max(2, Math.floor((W - L - R) / 80)));
+for (let k = 0; k < nl; k++) { const i = Math.round(k * (pts.length - 1) / (nl - 1)); g += `<text x="${x(pts[i][0]).toFixed(1)}" y="${H - 5}" text-anchor="${k === 0 ? 'start' : k === nl - 1 ? 'end' : 'middle'}" font-size="10.5" fill="var(--ink3)">${fmtX(pts[i][0])}</text>`; }
+const linea = pts.map((p, i) => (i ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1)).join(' ');
+g += `<path d="${linea} L${x(pts[pts.length - 1][0]).toFixed(1)} ${H - Bm} L${x(pts[0][0]).toFixed(1)} ${H - Bm} Z" fill="var(--s1)" opacity=".1"/><path d="${linea}" fill="none" stroke="var(--s1)" stroke-width="2.4" stroke-linejoin="round"/>`;
+if (pts.length <= 40) g += pts.map(p => `<circle cx="${x(p[0]).toFixed(1)}" cy="${y(p[1]).toFixed(1)}" r="3" fill="var(--s1)"/>`).join('');
+g += `<g id="hCross" class="hidden"><line id="hCl" y1="${T}" y2="${H - Bm}" stroke="var(--ink2)" stroke-dasharray="3 3"/><circle id="hCd" r="4.5" fill="var(--card)" stroke="var(--s1)" stroke-width="2"/></g>`;
+box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Valor liquidativo de ${esc(f.nombre)}" style="display:block;touch-action:pan-y">${g}</svg><div id="hTip" class="hidden" style="position:absolute;top:0;pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:5px 9px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.18);white-space:nowrap;line-height:1.4"></div>`;
+const svg = box.querySelector('svg'), tip = $('hTip');
+const mover = ev => {
+const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) / r.width * W;
+let k = 0, best = Infinity; pts.forEach((p, i) => { const dd = Math.abs(x(p[0]) - px); if (dd < best) { best = dd; k = i; } });
+const p = pts[k], ant = k ? pts[k - 1][1] : null;
+$('hCross').classList.remove('hidden'); $('hCl').setAttribute('x1', x(p[0])); $('hCl').setAttribute('x2', x(p[0])); $('hCd').setAttribute('cx', x(p[0])); $('hCd').setAttribute('cy', y(p[1]));
+tip.innerHTML = `<b>${new Date(p[0] + 'T12:00:00').toLocaleDateString('es-ES', { weekday:'short', day:'numeric', month:'short', year:'numeric' })}</b><br>VL ${vl(p[1])} €${ant ? `<br><span class="${p[1] >= ant ? 'pos' : 'neg'}">${p[1] >= ant ? '+' : ''}${((p[1] / ant - 1) * 100).toLocaleString('es-ES', { maximumFractionDigits:2 })} % vs día anterior</span>` : ''}`;
+tip.classList.remove('hidden');
+tip.style.left = Math.min(Math.max(x(p[0]) / W * r.width - 60, 0), r.width - 170) + 'px';
+};
+svg.addEventListener('pointermove', mover); svg.addEventListener('pointerdown', mover);
+svg.addEventListener('pointerleave', () => { $('hCross').classList.add('hidden'); tip.classList.add('hidden'); });
+}
 function pintarProy() {
 const fs = modeloFondos(+ing.horizonte, claseSub()), sel = ing.fondoSel ? fs.filter(f => norm(f.nombre) === ing.fondoSel) : fs, box = $('iProyBox');
 $('iHor').value = ing.horizonte;
-const dia = ing.vista === 'dia';
+const unico = !!ing.fondoSel && sel.length === 1;   // el histórico solo está disponible con un fondo seleccionado
+$('iHSeg').classList.toggle('hidden', !unico);
+if (ing.vista === 'hist' && !unico) ing.vista = 'mes';
+const hist = ing.vista === 'hist', dia = ing.vista === 'dia';
+$('iHRango').classList.toggle('hidden', !hist);
 document.querySelectorAll('#iVista button').forEach(b => b.setAttribute('aria-pressed', b.dataset.vi === ing.vista));
-$('iDia').classList.toggle('hidden', !dia); $('iHor').classList.toggle('hidden', dia);
+$('iVHist').setAttribute('aria-pressed', hist);
+$('iDia').classList.toggle('hidden', !dia); $('iHor').classList.toggle('hidden', dia || hist); $('iLeg').classList.toggle('hidden', hist);
 const lg = $('iLeg').children; lg[2].style.display = lg[3].style.display = dia ? 'none' : '';
-$('iProyT').textContent = dia ? 'Valor día a día' : 'Evolución y proyección';
+$('iProyT').textContent = hist ? 'Histórico' : dia ? 'Valor día a día' : 'Evolución y proyección';
 if (dia) poblarDia();
 if (!sel.length) { box.innerHTML = `<div class="empty">${ing.sub === 'planes' ? 'Añade un plan de pensiones' : 'Añade un fondo'} para ver la evolución y la proyección.</div>`; $('iProyRes').innerHTML = ''; return; }
+if (hist) { pintarHistFondo(sel[0], box); return; }
 if (dia) { pintarDia(sel, box); return; }
 const S = serieFondos(sel, +ing.horizonte), n = S.V.length - 1, h = S.iHoy, tot = sel.reduce((s, f) => s + f.hoy, 0);
 const rPond = tot > 0 ? sel.reduce((s, f) => s + f.r * f.hoy, 0) / tot : 0;
@@ -1308,6 +1360,7 @@ const m = modoIng(), res = m === 'ingreso', X = TXT_ING[m];
 const yr = ing.gran === 'y', hm = hoyStr().slice(0, 7), cy = hm.slice(0, 4);
 $('iYear').classList.add('hidden');
 const verRes = res && ing.estado === 'ok' && vistaFan(), estado = verRes && ing.rsub !== 'graf';   // el estado financiero es de Fan
+if (!(sag.view === 'inv' && ['fondos', 'planes', 'resumen'].includes(ing.sub))) { $('iHSeg').classList.add('hidden'); $('iHRango').classList.add('hidden'); }
 $('rSub').classList.toggle('hidden', !verRes); $('eSub').classList.toggle('hidden', !(estado && ing.rsub === 'estado')); $('iEst').classList.toggle('hidden', !estado); $('iGran').classList.toggle('hidden', estado);
 document.querySelectorAll('#rSub button').forEach(b => b.setAttribute('aria-pressed', b.dataset.r === (estado ? ing.rsub : 'graf')));
 $('iAdd').disabled = ing.estado !== 'ok'; $('iAdd').textContent = !res && ing.sub === 'planes' ? '+ Nuevo plan' : X.add;
@@ -1699,6 +1752,8 @@ const r = e.target.closest('[data-fondo]'); if (r) { const k = norm(r.dataset.fo
 });
 $('iSub').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.sub = b.dataset.s; LSset('iSub', ing.sub); ing.fondoSel = null; pintarIng(); } });
 document.querySelectorAll('#iVista button').forEach(b => b.addEventListener('click', () => { ing.vista = b.dataset.vi; LSset('iVista', ing.vista); pintarProy(); }));
+$('iVHist').addEventListener('click', () => { ing.vista = ing.vista === 'hist' ? 'mes' : 'hist'; LSset('iVista', ing.vista === 'dia' ? 'dia' : 'mes'); pintarProy(); });
+$('iHRango').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { ing.hr = b.dataset.hr; LSset('iHr', ing.hr); pintarProy(); } });
 const irMes = m => { ing.diaMes = ajustarMes(m); pintarProy(); };
 $('iDM').addEventListener('change', () => irMes($('iDA').value + '-' + $('iDM').value));
 $('iDA').addEventListener('change', () => irMes($('iDA').value + '-' + ($('iDM').value || '01')));
