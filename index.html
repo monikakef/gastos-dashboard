@@ -386,7 +386,9 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <label>Fecha<input type="date" id="gFecha" required></label>
 <label>Categoría<select id="gCat"></select></label>
 <label>Pagó<select id="gPaga"></select></label>
-<div style="font-size:12.5px;color:var(--ink2);margin-bottom:10px">Se reparte a partes iguales entre<div id="gRep" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px"></div></div>
+<label>Dividir<select id="gModo"><option value="igual">A partes iguales</option><option value="importes">Importes concretos</option></select></label>
+<div id="gRep" style="margin:-2px 0 4px"></div>
+<div id="gSuma" style="font-size:12.5px;color:var(--ink3);min-height:1.3em;margin-bottom:8px"></div>
 <label id="gCodL" class="hidden">Código de acceso<input type="password" id="gCod" autocomplete="current-password"></label>
 <div id="gErr" role="alert" style="color:var(--bad);min-height:1.2em;font-size:13px;margin-bottom:6px"></div>
 <div class="dlgBtns">
@@ -750,13 +752,38 @@ if (!r.ok) throw new Error((j && j.message) || 'Error ' + r.status);
 return j;
 }
 const CAT_TRI = [['GROCERIES', 'Supermercado 🛒'], ['FOOD_AND_DRINK', 'Comida 🍔'], ['TRANSPORT', 'Transporte 🚗'], ['ENTERTAINMENT', 'Entretenimiento 🎮'], ['SHOPPING', 'Compras 🛍️'], ['RENT_AND_UTILITIES', 'Casa y suministros 🏠'], ['HEALTHCARE', 'Salud 🏥'], ['TRAVEL', 'Viajes ✈️'], ['INSURANCE', 'Seguro 🛡️'], ['OTHER', 'Otros 📦']];
+let CATS_G = [];
+function categoriasTri() {   // las de Tricount + las personalizadas que ya se usan en el grupo, de más a menos usadas
+const cnt = {}; GASTOS.forEach(t => { if (t.cat) cnt[t.cat] = (cnt[t.cat] || 0) + 1; });
+const m = new Map(CAT_TRI.map(([k, n]) => [n, { label:n, key:k, custom:'' }]));
+Object.keys(cnt).forEach(l => { if (!m.has(l) && !/^Sin categoría/.test(l)) m.set(l, { label:l, key:'OTHER', custom:l }); });
+return [...m.values()].sort((a, b) => (cnt[b.label] || 0) - (cnt[a.label] || 0));
+}
+const fmtE = v => v.toLocaleString('es-ES', { minimumFractionDigits:2, maximumFractionDigits:2 });
+function gRepintar() {   // importes por persona: automáticos a partes iguales, o escritos a mano
+const modo = $('gModo').value, imp = Math.round(parseFloat($('gImp').value) * 100) || 0, rows = [...document.querySelectorAll('#gRep .gRow')];
+const marc = rows.filter(r => r.querySelector('[type=checkbox]').checked).map(r => r.dataset.n);
+const eq = marc.length && imp > 0 ? repartoCents(imp, marc) : {};
+let suma = 0;
+rows.forEach(r => {
+const c = r.querySelector('[type=checkbox]'), i = r.querySelector('input[type=number]');
+c.style.display = modo === 'importes' ? 'none' : 'inline-block'; i.readOnly = modo === 'igual';
+if (modo === 'igual') i.value = c.checked && eq[r.dataset.n] != null ? eq[r.dataset.n].toFixed(2) : '';
+suma += Math.round((parseFloat(i.value) || 0) * 100);
+});
+const dif = imp - suma, mal = modo === 'importes' && imp > 0 && dif !== 0;
+$('gSuma').textContent = modo === 'igual' || imp <= 0 ? '' : dif === 0 ? '✓ Suma ' + fmtE(imp / 100) + ' €' : 'Suma ' + fmtE(suma / 100) + ' de ' + fmtE(imp / 100) + ' € · ' + (dif > 0 ? 'faltan ' : 'sobran ') + fmtE(Math.abs(dif) / 100) + ' €';
+$('gSuma').style.color = mal ? 'var(--bad)' : 'var(--ink3)';
+}
 function abrirGasto() {   // añade un gasto al Tricount principal (lo crea la función tricount-gasto)
 const ms = DATA.members;
-$('gDesc').value = ''; $('gImp').value = ''; $('gFecha').value = hoyStr();
-$('gCat').innerHTML = CAT_TRI.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join('');
+CATS_G = categoriasTri();
+$('gDesc').value = ''; $('gImp').value = ''; $('gFecha').value = hoyStr(); $('gModo').value = 'igual';
+$('gCat').innerHTML = CATS_G.map((c, i) => `<option value="${i}">${esc(c.label)}</option>`).join('');
 $('gPaga').innerHTML = ms.map(m => `<option>${esc(m)}</option>`).join('');
 $('gPaga').value = ms.includes(state.who) ? state.who : (miembroFan() || ms[0]);
-$('gRep').innerHTML = ms.map(m => `<label style="margin:0;font-size:14px;color:var(--ink)"><input type="checkbox" value="${esc(m)}" checked style="display:inline-block;width:auto;margin:0 6px 0 0;vertical-align:middle">${esc(m)}</label>`).join('');
+$('gRep').innerHTML = ms.map(m => `<div class="gRow" data-n="${esc(m)}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><label style="margin:0;flex:1;display:flex;align-items:center;font-size:14px;color:var(--ink)"><input type="checkbox" checked style="display:inline-block;width:auto;margin:0 8px 0 0"><span>${esc(m)}</span></label><input type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" style="display:inline-block;width:110px;margin:0;text-align:right"></div>`).join('');
+gRepintar();
 $('gCodL').classList.toggle('hidden', !!ing.code); $('gCod').value = '';
 $('gErr').textContent = ''; $('gSave').disabled = false;
 $('gDlg').showModal();
@@ -785,16 +812,27 @@ pintar();
 }
 async function guardarGasto(e) {
 e.preventDefault();
-const desc = $('gDesc').value.trim(), imp = Math.round(parseFloat($('gImp').value) * 100), fecha = $('gFecha').value, categoria = $('gCat').value, paga = $('gPaga').value;
-const reparto = [...document.querySelectorAll('#gRep input:checked')].map(x => x.value), codigo = ing.code || $('gCod').value.trim();
+const desc = $('gDesc').value.trim(), imp = Math.round(parseFloat($('gImp').value) * 100), fecha = $('gFecha').value, cat = CATS_G[+$('gCat').value] || CATS_G[0], paga = $('gPaga').value;
+const modo = $('gModo').value, rows = [...document.querySelectorAll('#gRep .gRow')], codigo = ing.code || $('gCod').value.trim();
 if (!desc || !(imp > 0) || !fecha) { $('gErr').textContent = 'Rellena descripción, importe y fecha.'; return; }
-if (!reparto.length) { $('gErr').textContent = 'Elige al menos una persona para el reparto.'; return; }
+let reparto, shares;
+if (modo === 'igual') {
+const nombres = rows.filter(r => r.querySelector('[type=checkbox]').checked).map(r => r.dataset.n);
+if (!nombres.length) { $('gErr').textContent = 'Elige al menos una persona para el reparto.'; return; }
+reparto = nombres; shares = repartoCents(imp, nombres);
+} else {
+shares = {}; rows.forEach(r => { const v = Math.round((parseFloat(r.querySelector('input[type=number]').value) || 0) * 100); if (v > 0) shares[r.dataset.n] = v / 100; });
+const suma = Object.values(shares).reduce((a, v) => a + Math.round(v * 100), 0);
+if (!Object.keys(shares).length) { $('gErr').textContent = 'Escribe el importe de al menos una persona.'; return; }
+if (suma !== imp) { $('gErr').textContent = 'El reparto suma ' + fmtE(suma / 100) + ' € y el gasto es de ' + fmtE(imp / 100) + ' €.'; return; }
+reparto = shares;
+}
 if (!codigo) { $('gErr').textContent = 'Introduce el código de acceso.'; return; }
 $('gSave').disabled = true; $('gErr').textContent = '';
 try {
-const j = await llamarGasto({ accion:'crear', codigo, desc, importe:imp / 100, fecha, categoria, paga, reparto });
+const j = await llamarGasto({ accion:'crear', codigo, desc, importe:imp / 100, fecha, categoria:cat.key, categoria_custom:cat.custom, paga, reparto });
 if (!ing.code) { ing.code = codigo; LSset('ingCode', codigo); }
-const tx = { d:fecha, desc, paid:paga, total:imp / 100, cur:'EUR', cat:(CAT_TRI.find(c => c[0] === categoria) || [0, 'Otros 📦'])[1], type:'NORMAL', shares:repartoCents(imp, reparto), _tri:j.id };
+const tx = { d:fecha, desc, paid:paga, total:imp / 100, cur:'EUR', cat:cat.label, type:'NORMAL', shares, _tri:j.id };
 DATA.transactions.unshift(tx); refrescarTrasGasto(ym(fecha));
 $('gDlg').close();
 avisoGasto('Gasto añadido a Tricount.', j.id ? async () => {
@@ -1862,6 +1900,7 @@ $('pDel').onclick = borrarPat;
 $('pTipo').addEventListener('change', tipoPat);
 $('xForm').addEventListener('submit', guardarExtra);
 $('gAdd').addEventListener('click', abrirGasto); $('gForm').addEventListener('submit', guardarGasto); $('gCancel').onclick = () => $('gDlg').close();
+$('gModo').addEventListener('change', gRepintar); $('gImp').addEventListener('input', gRepintar); $('gRep').addEventListener('input', gRepintar); $('gRep').addEventListener('change', gRepintar);
 $('xCancel').onclick = () => $('xDlg').close();
 $('xDel').onclick = borrarExtra;
 $('xFecha').addEventListener('change', avisoExtra);
