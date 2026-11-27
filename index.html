@@ -779,9 +779,21 @@ $('gSuma').style.color = mal ? 'var(--bad)' : 'var(--ink3)';
 let GEDIT = null;   // gasto que se está editando (null = gasto nuevo)
 const idGasto = t => t.id || t._tri || null;
 const btnEditar = t => idGasto(t) ? `<button type="button" class="btn2" data-gedit="${idGasto(t)}" style="padding:1px 8px;font-size:11.5px;margin-left:8px">Editar</button>` : '';
+let GBASE = null;   // proporciones del reparto por importes, para reajustarlas si cambia el total
+const gValores = () => [...document.querySelectorAll('#gRep .gRow')].map(r => Math.round((parseFloat(r.querySelector('input[type=number]').value) || 0) * 100));
+const gBaseDesdeCampos = () => { GBASE = gValores(); };
+function gReescalar() {   // al cambiar el total en «importes concretos», cada persona mantiene su proporción
+const rows = [...document.querySelectorAll('#gRep .gRow')], imp = Math.round(parseFloat($('gImp').value) * 100) || 0;
+const base = GBASE && GBASE.length === rows.length ? GBASE : gValores(), sb = base.reduce((a, v) => a + v, 0);
+if (!(imp > 0) || !(sb > 0)) return;
+const nuevo = base.map(v => Math.floor(v * imp / sb)); let resto = imp - nuevo.reduce((a, v) => a + v, 0);
+const orden = base.map((v, i) => i).filter(i => base[i] > 0).sort((a, b) => base[b] - base[a]);
+for (let k = 0; resto > 0; k = (k + 1) % orden.length) { nuevo[orden[k]]++; resto--; }
+rows.forEach((r, i) => { r.querySelector('input[type=number]').value = nuevo[i] > 0 ? (nuevo[i] / 100).toFixed(2) : ''; });
+}
 function abrirGasto(ed) {   // añade (o edita, si recibe un gasto) un gasto del Tricount principal mediante la función tricount-gasto
 const ms = DATA.members;
-GEDIT = ed || null;
+GEDIT = ed || null; GBASE = null;
 CATS_G = categoriasTri();
 $('gDesc').value = ''; $('gImp').value = ''; $('gFecha').value = hoyStr(); $('gModo').value = 'igual';
 $('gCat').innerHTML = CATS_G.map((c, i) => `<option value="${i}">${esc(c.label)}</option>`).join('');
@@ -800,7 +812,7 @@ document.querySelectorAll('#gRep .gRow').forEach(r => { const on = nombres.inclu
 $('gTitulo').textContent = GEDIT ? 'Editar gasto' : 'Añadir gasto';
 $('gSub').textContent = GEDIT ? 'Los cambios se guardan también en Tricount.' : 'Se crea en Tricount y aparece aquí al momento.';
 $('gDel').classList.toggle('hidden', !GEDIT); $('gDel').disabled = false;
-gRepintar();
+gRepintar(); if ($('gModo').value === 'importes') gBaseDesdeCampos();
 $('gCodL').classList.toggle('hidden', !!ing.code); $('gCod').value = '';
 $('gErr').textContent = ''; $('gSave').disabled = false;
 $('gDlg').showModal();
@@ -1938,7 +1950,9 @@ $('xForm').addEventListener('submit', guardarExtra);
 $('gAdd').addEventListener('click', () => abrirGasto(null)); $('gDel').addEventListener('click', borrarGasto);
 const editarDe = e => { const b = e.target.closest('[data-gedit]'); if (!b) return; const t = DATA.transactions.find(x => String(idGasto(x)) === b.dataset.gedit); if (t) abrirGasto(t); };
 $('list').addEventListener('click', editarDe); $('hList').addEventListener('click', editarDe); $('gForm').addEventListener('submit', guardarGasto); $('gCancel').onclick = () => $('gDlg').close();
-$('gModo').addEventListener('change', gRepintar); $('gImp').addEventListener('input', gRepintar); $('gRep').addEventListener('input', gRepintar); $('gRep').addEventListener('change', gRepintar);
+$('gModo').addEventListener('change', () => { gRepintar(); if ($('gModo').value === 'importes') gBaseDesdeCampos(); });
+$('gImp').addEventListener('input', () => { if ($('gModo').value === 'importes') gReescalar(); gRepintar(); });
+$('gRep').addEventListener('input', e => { if ($('gModo').value === 'importes' && e.target.matches('input[type=number]')) gBaseDesdeCampos(); gRepintar(); }); $('gRep').addEventListener('change', gRepintar);
 $('xCancel').onclick = () => $('xDlg').close();
 $('xDel').onclick = borrarExtra;
 $('xFecha').addEventListener('change', avisoExtra);
