@@ -89,6 +89,7 @@ h2 { font-size:13px; margin:0 0 6px; font-weight:600; color:var(--ink2); display
 .catchip { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 6px; padding:5px 8px; border-radius:8px; background:var(--grid); font-size:12.5px; } .catchip button { border:0; background:none; color:var(--s1); font-size:12.5px; padding:2px 4px; }
 .cat .a { text-align:right; font-weight:600; }
 #cats { overflow-x:hidden; }
+@media (min-width:900px) { #cats { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); column-gap:26px; align-content:start; } #cats .cat { font-size:13.5px; margin-bottom:10px; } }
 .cat .a small { font-weight:400; color:var(--ink3); margin-left:4px; }
 .cat .vs { grid-column:1 / -1; font-size:11px; color:var(--ink3); margin-top:-1px; }
 .bar { grid-column:1 / -1; height:6px; background:var(--grid); border-radius:3px; overflow:hidden; }
@@ -174,7 +175,7 @@ h2 .lnk { background:none; border:0; color:var(--s1); font-size:12px; padding:0 
 @media (min-width:900px) {
 .views, .sag { width:100%; max-width:720px; margin-left:auto; margin-right:auto; }
 #app { padding:14px; gap:10px; } .grid { gap:10px; }
-.grid { grid-template-columns:minmax(300px,.9fr) minmax(0,1.1fr) minmax(0,1.1fr); grid-template-rows:minmax(0,1.2fr) auto minmax(0,1fr);
+.grid { grid-template-columns:minmax(300px,.9fr) minmax(0,1.1fr) minmax(0,1.1fr); grid-template-rows:minmax(0,1fr) auto minmax(0,1.25fr);
 grid-template-areas:"list chart chart" "list hero comp" "list cats cats"; }   /* movimientos a la izquierda; a la derecha, la gráfica y debajo el resto */
 .lower { display:contents; }
 .tabs { display:none; }
