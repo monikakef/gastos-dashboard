@@ -1081,8 +1081,13 @@ const vacio = resumen ? 'Aún no hay fondos ni planes. Añádelos en las pestañ
 $('iFondosL').innerHTML = cab + (fs.length ? fs.map(f => {
 const sinPrecios = (f.codigo ? 'código sin precios online (usa el ISIN o el ID de Morningstar 0P…)' : f.clase === 'plan' ? 'sin código' : 'sin ISIN') + (f.r ? ' · estimación con la rentabilidad indicada' : ' · sin crecimiento: indica una rentabilidad anual' + (f.clase === 'plan' ? ', un fondo de referencia o importa su histórico' : '') + ' (Editar)');
 const viejo = f.px && f.px.importado && diasEntre(f.fechaNav, hoyStr()) > 10;
-const precio = f.px && f.px.importado ? `VL importado ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:4 })} € (${corta(f.fechaNav)})${viejo ? ' · histórico desactualizado: vuelve a importarlo' : ''}` : !f.isin ? sinPrecios : f.px ? `${f.viaRef ? 'Siguiendo el fondo ' + esc(f.isin) + ' · ' : ''}VL ${f.navHoy.toLocaleString('es-ES', { maximumFractionDigits:2 })} € (${corta(f.fechaNav)})`
+const precio = f.px && f.px.importado ? (viejo ? 'histórico desactualizado: vuelve a importarlo' : '') : !f.isin ? sinPrecios : f.px ? (f.viaRef ? 'Siguiendo el fondo ' + esc(f.isin) : '')
 : f.pxEstado === 'error' ? `sin precios (${esc(f.pxMsg || 'error')}) · <a href="#" data-retry="${esc(f.isin)}" style="color:var(--s1)">reintentar</a>` : 'buscando precios…';
+const ser = f.px && f.px.serie ? f.px.serie : [];   // última variación (último precio frente al anterior) y su día, junto al nombre
+const ult = ser[ser.length - 1], pre = ser[ser.length - 2];
+const antig = ult ? diasEntre(ult[0], hoyStr()) : 0, vr = ult && pre && pre[1] ? (ult[1] / pre[1] - 1) * 100 : null;
+const chipVL = vr !== null ? `<span title="Variación del último valor liquidativo frente al anterior, y su día" style="margin-left:8px;font-size:12px;font-weight:600;white-space:nowrap"><span class="${vr >= 0 ? 'pos' : 'neg'}">${vr >= 0 ? '+' : ''}${vr.toLocaleString('es-ES', { minimumFractionDigits:2, maximumFractionDigits:2 })} %</span> <span style="color:${antig > 5 ? 'var(--bad)' : 'var(--ink2)'}">· ${corta(ult[0])}</span></span>` : '';
+const lineaPrecio = [f.codigo ? esc(f.codigo) : '', precio].filter(Boolean).join(' · ');
 const pct = f.aportado > 0 ? ' (' + (f.gan >= 0 ? '+' : '') + pc(f.gan / f.aportado * 100) + ' %)' : '';
 const plan = f.f.aporte ? `Aportas ${eur.format(f.f.aporte)} ${NOMBRE_PER[f.f.per]} desde ${corta(f.f.desde)}${f.f.hasta ? ' hasta ' + corta(f.f.hasta) : ''}` : 'sin aportación periódica';
 const base = f.anclado ? `Partes de ${eur.format(f.v0)} (aportado ${eur.format(f.aport0)}) el ${corta(f.d0)}` : 'Reconstruido desde la primera aportación';
@@ -1090,8 +1095,8 @@ const iniTxt = f.f.inicial ? `Inicial ${eur.format(f.f.inicial)} (${corta(f.f.in
 const extrasTxt = f.extras.length ? ` · ${f.extras.length} extra${f.extras.length === 1 ? '' : 's'} (${eur.format(f.extras.reduce((t, x) => t + x.amount, 0))})` : '';
 const tag = resumen ? ` <span class="label">${f.clase === 'plan' ? 'plan de pensiones' : 'fondo'}</span>` : '';
 return `<div class="row" data-fondo="${esc(f.nombre)}" style="cursor:pointer;${ing.fondoSel === norm(f.nombre) ? 'background:var(--grid);border-radius:8px;padding-left:6px;padding-right:6px' : ''}"><div>
-<div class="d">${esc(f.nombre)}${tag} <button class="btn2" data-edit="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">Editar</button><button class="btn2" data-extra="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">+ Aportación</button></div>
-<div class="c">${f.codigo ? esc(f.codigo) + ' · ' : ''}${precio}</div>
+<div class="d">${esc(f.nombre)}${tag} <button class="btn2" data-edit="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">Editar</button><button class="btn2" data-extra="${esc(f.id)}" type="button" style="padding:1px 8px;font-size:11.5px;margin-left:4px">+ Aportación</button>${chipVL}</div>
+${lineaPrecio ? `<div class="c">${lineaPrecio}</div>` : ''}
 <div class="c">${iniTxt}${plan}${extrasTxt} · ${base}</div>
 <div class="c">Aportado ${eur.format(f.aportado)} · beneficio <span class="${f.gan >= 0 ? 'pos' : 'neg'}">${f.gan >= 0 ? '+' : ''}${eur.format(f.gan)}${pct}</span> · rentab. ${pc(f.r * 100)} %/año (${f.rFuente})</div>
 </div><div class="m num">${eur.format(f.hoy)}</div></div>`;
