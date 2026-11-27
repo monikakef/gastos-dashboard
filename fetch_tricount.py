@@ -65,6 +65,7 @@ def parsear(data):
                 cat = forzada
                 break
         movs.append({
+            "id": t["id"],
             "d": datetime.strptime(t["date"], "%Y-%m-%d %H:%M:%S.%f").strftime("%Y-%m-%d"),
             "desc": desc,
             "paid": t["membership_owned"]["RegistryMembershipNonUser"]["alias"]["display_name"],

@@ -379,8 +379,8 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 </dialog>
 <dialog id="gDlg">
 <form id="gForm" autocomplete="off">
-<h3 style="margin:0 0 4px;font-size:17px">Añadir gasto</h3>
-<div style="font-size:12.5px;color:var(--ink3);margin-bottom:10px">Se crea en Tricount y aparece aquí al momento.</div>
+<h3 id="gTitulo" style="margin:0 0 4px;font-size:17px">Añadir gasto</h3>
+<div id="gSub" style="font-size:12.5px;color:var(--ink3);margin-bottom:10px">Se crea en Tricount y aparece aquí al momento.</div>
 <label>Descripción<input type="text" id="gDesc" maxlength="120" required placeholder="Mercadona"></label>
 <label>Importe (€)<input type="number" id="gImp" step="0.01" min="0.01" inputmode="decimal" required placeholder="12.50"></label>
 <label>Fecha<input type="date" id="gFecha" required></label>
@@ -392,6 +392,7 @@ html, body { height:auto; min-height:100%; overflow:auto; overscroll-behavior:au
 <label id="gCodL" class="hidden">Código de acceso<input type="password" id="gCod" autocomplete="current-password"></label>
 <div id="gErr" role="alert" style="color:var(--bad);min-height:1.2em;font-size:13px;margin-bottom:6px"></div>
 <div class="dlgBtns">
+<button type="button" id="gDel" class="btn2 danger hidden">Eliminar</button>
 <span style="flex:1"></span>
 <button type="button" id="gCancel" class="btn2">Cancelar</button>
 <button type="submit" class="btn sm" id="gSave">Guardar</button>
@@ -692,7 +693,7 @@ const buscando = !!norm(hist.q);
 const lista = ordenar(buscando ? c.items : c.items.filter(t => c.key(t) === keys[i]));
 const fmtF = buscando ? { day:'numeric', month:'short', year:'numeric' } : { day:'numeric', month:'short' };
 const cab = buscando ? `<div class="day" style="margin-top:0">${lista.length} resultado${lista.length === 1 ? '' : 's'} · ${eur0.format(lista.reduce((s, t) => s + importe(t), 0))} · todo el histórico</div>` : '';
-$('hList').innerHTML = cab + lista.map(t => `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', fmtF)}</b> · ${esc(catOf(t))} · pagó ${esc(t.paid)}${state.who !== 'Total' && t.total !== importe(t) ? ` · total ${eur.format(t.total)}` : ''}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`).join('') || '<div class="empty">Sin gastos</div>';
+$('hList').innerHTML = cab + lista.map(t => `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}${btnEditar(t)}</div><div class="c"><b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', fmtF)}</b> · ${esc(catOf(t))} · pagó ${esc(t.paid)}${state.who !== 'Total' && t.total !== importe(t) ? ` · total ${eur.format(t.total)}` : ''}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`).join('') || '<div class="empty">Sin gastos</div>';
 $('hList').scrollTop = 0;
 }
 const sag = { view:LS('view') || 'gastos', period:LS('sagPeriod') || 'mes', gran:LS('sGran') === 'y' ? 'y' : 'm', ysel:null, fresh:true, month:null, months:[], items:[] };
@@ -775,14 +776,30 @@ const dif = imp - suma, mal = modo === 'importes' && imp > 0 && dif !== 0;
 $('gSuma').textContent = modo === 'igual' || imp <= 0 ? '' : dif === 0 ? '✓ Suma ' + fmtE(imp / 100) + ' €' : 'Suma ' + fmtE(suma / 100) + ' de ' + fmtE(imp / 100) + ' € · ' + (dif > 0 ? 'faltan ' : 'sobran ') + fmtE(Math.abs(dif) / 100) + ' €';
 $('gSuma').style.color = mal ? 'var(--bad)' : 'var(--ink3)';
 }
-function abrirGasto() {   // añade un gasto al Tricount principal (lo crea la función tricount-gasto)
+let GEDIT = null;   // gasto que se está editando (null = gasto nuevo)
+const idGasto = t => t.id || t._tri || null;
+const btnEditar = t => idGasto(t) ? `<button type="button" class="btn2" data-gedit="${idGasto(t)}" style="padding:1px 8px;font-size:11.5px;margin-left:8px">Editar</button>` : '';
+function abrirGasto(ed) {   // añade (o edita, si recibe un gasto) un gasto del Tricount principal mediante la función tricount-gasto
 const ms = DATA.members;
+GEDIT = ed || null;
 CATS_G = categoriasTri();
 $('gDesc').value = ''; $('gImp').value = ''; $('gFecha').value = hoyStr(); $('gModo').value = 'igual';
 $('gCat').innerHTML = CATS_G.map((c, i) => `<option value="${i}">${esc(c.label)}</option>`).join('');
 $('gPaga').innerHTML = ms.map(m => `<option>${esc(m)}</option>`).join('');
 $('gPaga').value = ms.includes(state.who) ? state.who : (miembroFan() || ms[0]);
 $('gRep').innerHTML = ms.map(m => `<div class="gRow" data-n="${esc(m)}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><label style="margin:0;flex:1;display:flex;align-items:center;font-size:14px;color:var(--ink)"><input type="checkbox" checked style="display:inline-block;width:auto;margin:0 8px 0 0"><span>${esc(m)}</span></label><input type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" style="display:inline-block;width:110px;margin:0;text-align:right"></div>`).join('');
+if (GEDIT) {   // rellena el formulario con el gasto existente
+$('gPaga').value = ms.includes(GEDIT.paid) ? GEDIT.paid : $('gPaga').value;
+$('gDesc').value = GEDIT.desc || ''; $('gImp').value = GEDIT.total.toFixed(2); $('gFecha').value = GEDIT.d;
+let ci = CATS_G.findIndex(c => c.label === GEDIT.cat); if (ci < 0) ci = CATS_G.findIndex(c => c.key === 'OTHER' && !c.custom);
+$('gCat').value = String(Math.max(ci, 0));
+const nombres = Object.keys(GEDIT.shares).filter(n => GEDIT.shares[n] > 0), eq = repartoCents(Math.round(GEDIT.total * 100), nombres);
+$('gModo').value = nombres.length && nombres.every(n => Math.round(eq[n] * 100) === Math.round(GEDIT.shares[n] * 100)) ? 'igual' : 'importes';
+document.querySelectorAll('#gRep .gRow').forEach(r => { const on = nombres.includes(r.dataset.n); r.querySelector('[type=checkbox]').checked = on; r.querySelector('input[type=number]').value = on ? GEDIT.shares[r.dataset.n].toFixed(2) : ''; });
+}
+$('gTitulo').textContent = GEDIT ? 'Editar gasto' : 'Añadir gasto';
+$('gSub').textContent = GEDIT ? 'Los cambios se guardan también en Tricount.' : 'Se crea en Tricount y aparece aquí al momento.';
+$('gDel').classList.toggle('hidden', !GEDIT); $('gDel').disabled = false;
 gRepintar();
 $('gCodL').classList.toggle('hidden', !!ing.code); $('gCod').value = '';
 $('gErr').textContent = ''; $('gSave').disabled = false;
@@ -808,7 +825,19 @@ return Object.fromEntries(nombres.map(n => [n, (base + (resto-- > 0 ? 1 : 0)) / 
 }
 function refrescarTrasGasto(m) {
 indexar(); if (!months.includes(m)) { months = [...new Set([...months, m])].sort(); firstMonth = months[0]; }
-pintar();
+pintar(); if (sag.view === 'hist') pintarHist();
+}
+async function borrarGasto() {
+if (!GEDIT || !confirm('¿Eliminar este gasto también de Tricount?')) return;
+const ed = GEDIT, codigo = ing.code || $('gCod').value.trim();
+if (!codigo) { $('gErr').textContent = 'Introduce el código de acceso.'; return; }
+$('gDel').disabled = true; $('gErr').textContent = '';
+try {
+await llamarGasto({ accion:'borrar', codigo, id:idGasto(ed) });
+if (!ing.code) { ing.code = codigo; LSset('ingCode', codigo); }
+DATA.transactions = DATA.transactions.filter(t => t !== ed); refrescarTrasGasto(ym(ed.d));
+$('gDlg').close(); avisoGasto('Gasto eliminado de Tricount.', null);
+} catch (err) { $('gErr').textContent = err.message; $('gDel').disabled = false; }
 }
 async function guardarGasto(e) {
 e.preventDefault();
@@ -830,8 +859,10 @@ reparto = shares;
 if (!codigo) { $('gErr').textContent = 'Introduce el código de acceso.'; return; }
 $('gSave').disabled = true; $('gErr').textContent = '';
 try {
-const j = await llamarGasto({ accion:'crear', codigo, desc, importe:imp / 100, fecha, categoria:cat.key, categoria_custom:cat.custom, paga, reparto });
+const ed = GEDIT;
+const j = await llamarGasto({ accion:ed ? 'editar' : 'crear', id:ed ? idGasto(ed) : undefined, codigo, desc, importe:imp / 100, fecha, categoria:cat.key, categoria_custom:cat.custom, paga, reparto });
 if (!ing.code) { ing.code = codigo; LSset('ingCode', codigo); }
+if (ed) { Object.assign(ed, { d:fecha, desc, paid:paga, total:imp / 100, cat:cat.label, shares }); refrescarTrasGasto(ym(fecha)); $('gDlg').close(); avisoGasto('Gasto actualizado en Tricount.', null); return; }
 const tx = { d:fecha, desc, paid:paga, total:imp / 100, cur:'EUR', cat:cat.label, type:'NORMAL', shares, _tri:j.id };
 DATA.transactions.unshift(tx); refrescarTrasGasto(ym(fecha));
 $('gDlg').close();
@@ -1812,7 +1843,7 @@ ordenar(f).forEach(t => {
 if (porDia && t.d !== last) { last = t.d; html += `<div class="day">${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { weekday:'long', day:'numeric', month:'short' })}</div>`; }
 const extra = state.who !== 'Total' && t.total !== importe(t) ? ` · total ${eur.format(t.total)}` : '';
 const fecha = porDia ? '' : `<b>${new Date(t.d + 'T12:00:00').toLocaleDateString('es-ES', { day:'numeric', month:'short' })}</b> · `;
-html += `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}</div><div class="c">${fecha}${esc(t.cat || '')} · pagó ${esc(t.paid)}${extra}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`;
+html += `<div class="row"><div><div class="d">${esc(t.desc || 'Sin descripción')}${btnEditar(t)}</div><div class="c">${fecha}${esc(t.cat || '')} · pagó ${esc(t.paid)}${extra}</div></div><div class="m num">${eur.format(importe(t))}</div></div>`;
 });
 $('list').innerHTML = html;
 $('list').scrollTop = 0;
@@ -1904,7 +1935,9 @@ $('pCancel').onclick = () => $('pDlg').close();
 $('pDel').onclick = borrarPat;
 $('pTipo').addEventListener('change', tipoPat);
 $('xForm').addEventListener('submit', guardarExtra);
-$('gAdd').addEventListener('click', abrirGasto); $('gForm').addEventListener('submit', guardarGasto); $('gCancel').onclick = () => $('gDlg').close();
+$('gAdd').addEventListener('click', () => abrirGasto(null)); $('gDel').addEventListener('click', borrarGasto);
+const editarDe = e => { const b = e.target.closest('[data-gedit]'); if (!b) return; const t = DATA.transactions.find(x => String(idGasto(x)) === b.dataset.gedit); if (t) abrirGasto(t); };
+$('list').addEventListener('click', editarDe); $('hList').addEventListener('click', editarDe); $('gForm').addEventListener('submit', guardarGasto); $('gCancel').onclick = () => $('gDlg').close();
 $('gModo').addEventListener('change', gRepintar); $('gImp').addEventListener('input', gRepintar); $('gRep').addEventListener('input', gRepintar); $('gRep').addEventListener('change', gRepintar);
 $('xCancel').onclick = () => $('xDlg').close();
 $('xDel').onclick = borrarExtra;
